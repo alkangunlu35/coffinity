@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coffinity – Beans Design Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: radial-gradient(ellipse at 20% 50%, #1a0d04 0%, #0d0602 60%, #050301 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  color: #f5e6d3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 60px;
+  gap: 40px;
+}
+
+/* Ambient glow spots */
+body::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 15% 30%, rgba(180,100,20,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 400px 300px at 85% 70%, rgba(120,60,10,0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.page-title { font-family: 'Playfair Display', serif; font-size: 28px; color: #e8c87a; letter-spacing: 0.5px; text-align: center; }
+.page-sub { font-size: 13px; color: #6b4a2a; text-align: center; font-weight: 400; margin-top: 6px; }
+
+/* Divider */
+.divider { display: flex; align-items: center; gap: 16px; width: 100%; max-width: 900px; margin: 0 auto; }
+.divider-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(230,154,58,0.3), transparent); }
+.divider-text { font-size: 11px; color: #6b4a2a; letter-spacing: 2px; text-transform: uppercase; white-space: nowrap; }
+
+/* Phone frames container */
+.phones-row { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+
+/* Phone */
+.phone {
+  width: 375px;
+  height: 812px;
+  background: #0d0602;
+  border-radius: 50px;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.8),
+    0 30px 80px rgba(0,0,0,0.8),
+    0 0 40px rgba(180,100,20,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.phone-label {
+  text-align: center;
+  color: #4a3020;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+/* Status bar */
+.status-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 24px 8px;
+  font-size: 12px; color: #8a6040; font-weight: 500;
+}
+.status-bar .time { font-size: 15px; font-weight: 600; color: #c9a882; }
+
+/* ===================== SCREEN 1 ===================== */
+.s1 { flex: 1; overflow-y: auto; scrollbar-width: none; padding-bottom: 80px; }
+.s1::-webkit-scrollbar { display: none; }
+
+.s1-header { padding: 4px 22px 20px; }
+.s1-header .eyebrow { font-size: 11px; color: #c9783a; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+.s1-header h2 { font-family: 'Playfair Display', serif; font-size: 32px; color: #f5e6d3; line-height: 1.15; }
+.s1-header p { font-size: 13px; color: #7a5535; margin-top: 6px; font-weight: 400; line-height: 1.5; }
+
+/* Search */
+.search { margin: 0 20px 20px; display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 12px 16px; }
+.search svg { flex-shrink: 0; opacity: 0.4; }
+.search span { font-size: 13px; color: #5a3a1a; }
+
+/* Region filters */
+.filters { display: flex; gap: 8px; padding: 0 20px 22px; overflow-x: auto; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.chip { padding: 7px 16px; border-radius: 20px; font-size: 12px; white-space: nowrap; cursor: pointer; font-weight: 500; border: 1px solid transparent; display: flex; align-items: center; gap: 6px; }
+.chip.on { background: linear-gradient(135deg, #c9783a, #e8a94a); color: #1a0a02; border-color: transparent; box-shadow: 0 4px 15px rgba(200,120,58,0.35); }
+.chip.off { background: rgba(255,255,255,0.05); color: #9a7050; border-color: rgba(255,255,255,0.08); }
+
+/* Continent section */
+.continent-section { margin-bottom: 8px; }
+.continent-header { display: flex; align-items: center; gap: 12px; padding: 16px 22px 12px; }
+.continent-svg { width: 32px; height: 28px; flex-shrink: 0; }
+.continent-label-wrap {}
+.continent-label { font-size: 13px; font-weight: 600; color: #c9a882; letter-spacing: 0.5px; }
+.continent-count { font-size: 11px; color: #5a3a1a; margin-top: 1px; }
+.continent-line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.06), transparent); }
+
+/* Country grid */
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 20px 4px; }
+
+.country-card {
+  background: linear-gradient(145deg, rgba(50,28,12,0.9), rgba(25,12,4,0.97));
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 22px;
+  padding: 16px 14px 14px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.country-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(230,160,60,0.3), transparent);
+}
+.country-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.4), 0 0 20px rgba(200,120,40,0.1); border-color: rgba(230,160,60,0.25); }
+
+.c-flag { font-size: 30px; margin-bottom: 10px; display: block; line-height: 1; }
+.c-name { font-size: 14px; font-weight: 600; color: #f0ddc8; letter-spacing: 0.2px; }
+.c-count { font-size: 11px; color: #7a5535; margin-top: 3px; }
+.c-badge { display: inline-flex; align-items: center; margin-top: 10px; padding: 4px 10px; border-radius: 8px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
+.b-am { background: rgba(52,168,83,0.12); color: #4db868; border: 1px solid rgba(52,168,83,0.2); }
+.b-af { background: rgba(234,80,53,0.12); color: #e86050; border: 1px solid rgba(234,80,53,0.2); }
+.b-as { background: rgba(66,133,244,0.12); color: #5a9ff0; border: 1px solid rgba(66,133,244,0.2); }
+.b-ca { background: rgba(230,154,58,0.12); color: #e69a3a; border: 1px solid rgba(230,154,58,0.2); }
+
+/* Bottom nav */
+.bottom-nav {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 80px;
+  background: linear-gradient(to top, rgba(8,4,1,0.98) 70%, rgba(8,4,1,0));
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex; align-items: center; justify-content: space-around;
+  padding: 0 8px 12px;
+}
+.nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; color: #3a2010; cursor: pointer; padding: 8px 14px; letter-spacing: 0.5px; }
+.nav-item.on { color: #e69a3a; }
+.nav-icon { font-size: 22px; }
+.nav-dot { width: 4px; height: 4px; border-radius: 50%; background: #e69a3a; margin-top: 2px; }
+
+/* ===================== SCREEN 2 ===================== */
+.s2 { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+/* Detail header */
+.d-header {
+  padding: 8px 20px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: linear-gradient(180deg, rgba(20,10,3,0.95), rgba(20,10,3,0.85));
+}
+.d-back { font-size: 22px; color: #9a7050; margin-bottom: 10px; cursor: pointer; }
+.d-country-row { display: flex; align-items: center; gap: 12px; }
+.d-flag { font-size: 36px; line-height: 1; }
+.d-country-name { font-family: 'Playfair Display', serif; font-size: 26px; color: #f5e6d3; line-height: 1.1; }
+.d-country-sub { font-size: 12px; color: #7a5535; margin-top: 3px; }
+
+/* Bean tabs */
+.bean-tabs {
+  display: flex; overflow-x: auto; scrollbar-width: none;
+  padding: 0 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: rgba(10,5,2,0.8);
+}
+.bean-tabs::-webkit-scrollbar { display: none; }
+.btab {
+  padding: 12px 16px 10px;
+  font-size: 12px; font-weight: 500;
+  white-space: nowrap; cursor: pointer;
+  color: #4a3020; border-bottom: 2px solid transparent;
+  transition: all 0.2s; flex-shrink: 0; letter-spacing: 0.3px;
+}
+.btab.on { color: #e8a94a; border-bottom-color: #e8a94a; }
+
+/* Bean scroll content */
+.bean-body { flex: 1; overflow-y: auto; scrollbar-width: none; padding-bottom: 80px; }
+.bean-body::-webkit-scrollbar { display: none; }
+
+/* Hero card */
+.bean-hero {
+  margin: 16px 20px 14px;
+  background: linear-gradient(145deg, rgba(55,28,10,0.95), rgba(28,12,3,0.98));
+  border: 1px solid rgba(230,160,60,0.18);
+  border-radius: 24px;
+  padding: 22px 20px 20px;
+  position: relative;
+  overflow: hidden;
+}
+.bean-hero::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(230,160,60,0.5), transparent);
+}
+.bean-hero::after {
+  content: '☕';
+  position: absolute; right: -4px; bottom: -8px;
+  font-size: 80px; opacity: 0.04;
+}
+.bh-name { font-family: 'Playfair Display', serif; font-size: 26px; color: #f5e6d3; margin-bottom: 4px; }
+.bh-origin { font-size: 12px; color: #c9783a; margin-bottom: 14px; letter-spacing: 0.5px; font-weight: 500; text-transform: uppercase; }
+.bh-desc { font-size: 13px; color: #9a7a5a; line-height: 1.65; }
+
+/* Flavor tags */
+.flavor-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.ftag {
+  padding: 6px 13px; border-radius: 12px;
+  font-size: 11px; font-weight: 500;
+  background: rgba(230,154,58,0.1);
+  color: #e0a050;
+  border: 1px solid rgba(230,154,58,0.2);
+  letter-spacing: 0.2px;
+}
+
+/* Info grid */
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 20px 14px; }
+.info-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px; padding: 14px;
+}
+.ic-label { font-size: 10px; color: #5a3a1a; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px; font-weight: 600; }
+.ic-val { font-size: 16px; color: #f0ddc8; font-weight: 600; }
+
+/* Brew card */
+.brew-card {
+  margin: 0 20px 14px;
+  background: rgba(230,154,58,0.06);
+  border: 1px solid rgba(230,154,58,0.15);
+  border-radius: 18px; padding: 16px;
+}
+.brew-label { font-size: 10px; color: #7a5535; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 10px; }
+.brew-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.brew-tag { padding: 6px 14px; border-radius: 10px; background: rgba(230,154,58,0.12); color: #e69a3a; font-size: 12px; font-weight: 500; border: 1px solid rgba(230,154,58,0.2); }
+
+/* ---- Continent SVG paths ---- */
+</style>
+</head>
+<body>
+
+<div class="page-title">Coffinity — Beans Screen</div>
+<p class="page-sub">Visual design preview · Two screens</p>
+
+<div class="phones-row">
+
+<!-- ========== PHONE 1: Country Beans ========== -->
+<div>
+<div class="phone">
+  <div class="status-bar"><span class="time">9:41</span><span>●●● 100%</span></div>
+
+  <div class="s1">
+    <div class="s1-header">
+      <div class="eyebrow">Discover</div>
+      <h2>Coffee Origins</h2>
+      <p>Explore beans from every<br>corner of the world</p>
+    </div>
+
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a882" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <span>Search country or variety…</span>
+    </div>
+
+    <div class="filters">
+      <div class="chip on">All Origins</div>
+      <div class="chip off">Americas</div>
+      <div class="chip off">Africa</div>
+      <div class="chip off">Asia & Oceania</div>
+      <div class="chip off">Caribbean</div>
+    </div>
+
+    <!-- AMERICAS -->
+    <div class="continent-section">
+      <div class="continent-header">
+        <svg class="continent-svg" viewBox="0 0 60 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- North + South America silhouette (simplified) -->
+          <path d="M20,2 L36,2 L42,8 L44,16 L38,22 L40,28 L36,32 L38,40 L34,46 L30,50 L24,56 L20,64 L18,72 L22,78 L16,76 L12,68 L14,58 L18,50 L16,44 L12,38 L14,30 L10,24 L12,16 L16,10 Z" fill="#4db868" opacity="0.7"/>
+          <!-- North America upper -->
+          <path d="M20,2 L36,2 L42,8 L44,16 L40,20 L36,16 L30,18 L24,14 L18,16 L14,12 L16,6 Z" fill="#4db868" opacity="0.4"/>
+        </svg>
+        <div class="continent-label-wrap">
+          <div class="continent-label">South & Central America</div>
+          <div class="continent-count">13 countries · 80+ varieties</div>
+        </div>
+        <div class="continent-line"></div>
+      </div>
+      <div class="grid">
+        <div class="country-card">
+          <span class="c-flag">🇧🇷</span>
+          <div class="c-name">Brazil</div>
+          <div class="c-count">9 varieties</div>
+          <span class="c-badge b-am">Americas</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇨🇴</span>
+          <div class="c-name">Colombia</div>
+          <div class="c-count">9 varieties</div>
+          <span class="c-badge b-am">Americas</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇵🇦</span>
+          <div class="c-name">Panama</div>
+          <div class="c-count">5 varieties</div>
+          <span class="c-badge b-am">Americas</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇬🇹</span>
+          <div class="c-name">Guatemala</div>
+          <div class="c-count">6 varieties</div>
+          <span class="c-badge b-am">Americas</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇵🇪</span>
+          <div class="c-name">Peru</div>
+          <div class="c-count">6 varieties</div>
+          <span class="c-badge b-am">Americas</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇲🇽</span>
+          <div class="c-name">Mexico</div>
+          <div class="c-count">6 varieties</div>
+          <span class="c-badge b-am">Americas</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFRICA -->
+    <div class="continent-section">
+      <div class="continent-header">
+        <!-- Africa silhouette SVG -->
+        <svg class="continent-svg" viewBox="0 0 60 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18,4 L38,4 L44,10 L46,20 L44,28 L48,34 L46,42 L40,50 L36,58 L30,68 L24,74 L20,70 L16,60 L14,50 L16,42 L14,34 L12,26 L14,18 L12,12 Z" fill="#e86050" opacity="0.75"/>
+          <!-- Horn of Africa -->
+          <path d="M44,28 L50,32 L46,36 L46,42 L44,38 L46,34 Z" fill="#e86050" opacity="0.5"/>
+        </svg>
+        <div class="continent-label-wrap">
+          <div class="continent-label">Africa</div>
+          <div class="continent-count">16 countries · 55+ varieties</div>
+        </div>
+        <div class="continent-line"></div>
+      </div>
+      <div class="grid">
+        <div class="country-card">
+          <span class="c-flag">🇪🇹</span>
+          <div class="c-name">Ethiopia</div>
+          <div class="c-count">9 varieties</div>
+          <span class="c-badge b-af">Africa</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇰🇪</span>
+          <div class="c-name">Kenya</div>
+          <div class="c-count">5 varieties</div>
+          <span class="c-badge b-af">Africa</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇷🇼</span>
+          <div class="c-name">Rwanda</div>
+          <div class="c-count">3 varieties</div>
+          <span class="c-badge b-af">Africa</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇹🇿</span>
+          <div class="c-name">Tanzania</div>
+          <div class="c-count">4 varieties</div>
+          <span class="c-badge b-af">Africa</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ASIA -->
+    <div class="continent-section">
+      <div class="continent-header">
+        <!-- Asia silhouette SVG -->
+        <svg class="continent-svg" viewBox="0 0 80 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4,14 L16,10 L26,8 L38,6 L50,8 L60,12 L70,16 L76,24 L74,32 L68,38 L60,42 L52,46 L44,50 L36,52 L28,50 L20,46 L14,40 L8,34 L4,26 Z" fill="#5a9ff0" opacity="0.65"/>
+          <!-- Peninsula (Indian sub) -->
+          <path d="M36,52 L40,58 L44,54 L44,50 Z" fill="#5a9ff0" opacity="0.45"/>
+          <!-- Japan islands -->
+          <ellipse cx="72" cy="20" rx="3" ry="6" fill="#5a9ff0" opacity="0.4" transform="rotate(-20 72 20)"/>
+        </svg>
+        <div class="continent-label-wrap">
+          <div class="continent-label">Asia & Oceania</div>
+          <div class="continent-count">10 countries · 40+ varieties</div>
+        </div>
+        <div class="continent-line"></div>
+      </div>
+      <div class="grid">
+        <div class="country-card">
+          <span class="c-flag">🇮🇩</span>
+          <div class="c-name">Indonesia</div>
+          <div class="c-count">8 varieties</div>
+          <span class="c-badge b-as">Asia</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇾🇪</span>
+          <div class="c-name">Yemen</div>
+          <div class="c-count">5 varieties</div>
+          <span class="c-badge b-as">Asia</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇮🇳</span>
+          <div class="c-name">India</div>
+          <div class="c-count">4 varieties</div>
+          <span class="c-badge b-as">Asia</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇵🇬</span>
+          <div class="c-name">Papua New Guinea</div>
+          <div class="c-count">3 varieties</div>
+          <span class="c-badge b-as">Asia</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARIBBEAN -->
+    <div class="continent-section">
+      <div class="continent-header">
+        <!-- Caribbean islands SVG -->
+        <svg class="continent-svg" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="18" cy="28" rx="10" ry="5" fill="#e69a3a" opacity="0.7" transform="rotate(-15 18 28)"/>
+          <ellipse cx="36" cy="22" rx="8" ry="4" fill="#e69a3a" opacity="0.55" transform="rotate(-10 36 22)"/>
+          <ellipse cx="48" cy="32" rx="5" ry="3" fill="#e69a3a" opacity="0.45" transform="rotate(-5 48 32)"/>
+          <circle cx="28" cy="38" rx="3" fill="#e69a3a" opacity="0.35"/>
+          <circle cx="42" cy="42" rx="2" fill="#e69a3a" opacity="0.3"/>
+        </svg>
+        <div class="continent-label-wrap">
+          <div class="continent-label">Caribbean</div>
+          <div class="continent-count">5 countries · 10+ varieties</div>
+        </div>
+        <div class="continent-line"></div>
+      </div>
+      <div class="grid">
+        <div class="country-card">
+          <span class="c-flag">🇯🇲</span>
+          <div class="c-name">Jamaica</div>
+          <div class="c-count">2 varieties</div>
+          <span class="c-badge b-ca">Caribbean</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇨🇺</span>
+          <div class="c-name">Cuba</div>
+          <div class="c-count">2 varieties</div>
+          <span class="c-badge b-ca">Caribbean</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇭🇹</span>
+          <div class="c-name">Haiti</div>
+          <div class="c-count">2 varieties</div>
+          <span class="c-badge b-ca">Caribbean</span>
+        </div>
+        <div class="country-card">
+          <span class="c-flag">🇩🇴</span>
+          <div class="c-name">Dominican Rep.</div>
+          <div class="c-count">3 varieties</div>
+          <span class="c-badge b-ca">Caribbean</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /s1 -->
+
+  <!-- Bottom nav -->
+  <div class="bottom-nav">
+    <div class="nav-item"><div class="nav-icon">☕</div>Brew</div>
+    <div class="nav-item on"><div class="nav-icon">🫘</div>Beans<div class="nav-dot"></div></div>
+    <div class="nav-item"><div class="nav-icon">🤝</div>Meet</div>
+    <div class="nav-item"><div class="nav-icon">🗺️</div>Map</div>
+    <div class="nav-item"><div class="nav-icon">👤</div>Profile</div>
+  </div>
+</div>
+<div class="phone-label">Screen 1 — Country Origins</div>
+</div>
+
+<!-- ========== PHONE 2: Country Detail (Ethiopia) ========== -->
+<div>
+<div class="phone">
+  <div class="status-bar"><span class="time">9:41</span><span>●●● 100%</span></div>
+
+  <div class="s2">
+    <div class="d-header">
+      <div class="d-back">←</div>
+      <div class="d-country-row">
+        <div class="d-flag">🇪🇹</div>
+        <div>
+          <div class="d-country-name">Ethiopia</div>
+          <div class="d-country-sub">Africa · 9 varieties · Arabica origin</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bean-tabs">
+      <div class="btab on">Yirgacheffe</div>
+      <div class="btab">Sidamo</div>
+      <div class="btab">Harrar</div>
+      <div class="btab">Djimmah</div>
+      <div class="btab">Limu</div>
+      <div class="btab">Guji</div>
+      <div class="btab">Wush Wush</div>
+      <div class="btab">Longberry</div>
+      <div class="btab">Heirloom</div>
+    </div>
+
+    <div class="bean-body">
+
+      <div class="bean-hero">
+        <div class="bh-name">Yirgacheffe</div>
+        <div class="bh-origin">Ethiopia · Southern Region · 1700–2200m</div>
+        <div class="bh-desc">
+          One of the world's most celebrated coffees. Grown in the Gedeo zone of the Yirgacheffe district, it delivers an extraordinary floral complexity with jasmine and bergamot aromatics, bright citrus acidity, and a delicate wine-like sweetness that lingers on the palate.
+        </div>
+        <div class="flavor-row">
+          <span class="ftag">🌸 Floral</span>
+          <span class="ftag">🍋 Citrus</span>
+          <span class="ftag">🍇 Winey</span>
+          <span class="ftag">🫖 Tea-like</span>
+          <span class="ftag">🍑 Peach</span>
+        </div>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="ic-label">Processing</div>
+          <div class="ic-val">Washed</div>
+        </div>
+        <div class="info-card">
+          <div class="ic-label">Altitude</div>
+          <div class="ic-val">1700–2200m</div>
+        </div>
+        <div class="info-card">
+          <div class="ic-label">Roast</div>
+          <div class="ic-val">Light – Medium</div>
+        </div>
+        <div class="info-card">
+          <div class="ic-label">Species</div>
+          <div class="ic-val">Arabica</div>
+        </div>
+      </div>
+
+      <div class="brew-card">
+        <div class="brew-label">Recommended Brewing</div>
+        <div class="brew-tags">
+          <span class="brew-tag">Pour Over</span>
+          <span class="brew-tag">Chemex</span>
+          <span class="brew-tag">Aeropress</span>
+          <span class="brew-tag">Cold Brew</span>
+        </div>
+      </div>
+
+    </div><!-- /bean-body -->
+  </div><!-- /s2 -->
+
+  <div class="bottom-nav">
+    <div class="nav-item"><div class="nav-icon">☕</div>Brew</div>
+    <div class="nav-item on"><div class="nav-icon">🫘</div>Beans<div class="nav-dot"></div></div>
+    <div class="nav-item"><div class="nav-icon">🤝</div>Meet</div>
+    <div class="nav-item"><div class="nav-icon">🗺️</div>Map</div>
+    <div class="nav-item"><div class="nav-icon">👤</div>Profile</div>
+  </div>
+</div>
+<div class="phone-label">Screen 2 — Country Detail (Ethiopia)</div>
+</div>
+
+</div><!-- /phones-row -->
+</body>
+</html>

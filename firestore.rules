@@ -1,0 +1,229 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return isSignedIn() && userDoc().data.role is string
+        ? userDoc().data.role
+        : "user";
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && userRole() == "super_admin";
+    }
+
+    function managedBrandIds() {
+      return isSignedIn() && userDoc().data.managedBrandIds is list
+        ? userDoc().data.managedBrandIds
+        : [];
+    }
+
+    function managedByBrandDoc(brandId) {
+      let brand = get(/databases/$(database)/documents/brands/$(brandId));
+      return brand.data != null
+        && (
+          (brand.data.ownerUserId is string && brand.data.ownerUserId == request.auth.uid)
+          || (brand.data.managedByUserIds is list && request.auth.uid in brand.data.managedByUserIds)
+        );
+    }
+
+    function canManageBrand(brandId) {
+      return isSuperAdmin()
+        || (isSignedIn()
+            && userRole() == "brand_admin"
+            && (
+              brandId in managedBrandIds()
+              || managedByBrandDoc(brandId)
+            ));
+    }
+
+    function validReviewTargetType(targetType) {
+      return targetType in ["brand", "product", "brew"];
+    }
+
+    function isPublicBrandStatus(status) {
+      return status is string
+        && status in ["active", "claimed", "business"];
+    }
+
+    function expectedReviewId(userId, targetType, targetId) {
+      return userId + "_" + targetType + "_" + targetId;
+    }
+
+    function isFinalSuggestionStatus(status) {
+      return status in ["approved_new_brand", "merged_existing_brand", "rejected"];
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update, delete: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+    }
+
+    match /brands/{brandId} {
+      allow read: if isPublicBrandStatus(resource.data.status)
+        || isSuperAdmin()
+        || (isSignedIn() && (
+          (resource.data.ownerUserId is string && resource.data.ownerUserId == request.auth.uid)
+          || (resource.data.managedByUserIds is list && request.auth.uid in resource.data.managedByUserIds)
+          || (userRole() == "brand_admin" && brandId in managedBrandIds())
+        ));
+      allow create: if isSignedIn() && isSuperAdmin();
+      allow update, delete: if isSignedIn() && canManageBrand(brandId);
+    }
+
+    match /brand_suggestions/{suggestionId} {
+      allow create: if isSignedIn()
+        && request.resource.data.submittedByUserId is string
+        && request.resource.data.submittedByUserId == request.auth.uid
+        && request.resource.data.brandName is string
+        && request.resource.data.brandName.size() > 0
+        && request.resource.data.normalizedBrandName is string
+        && request.resource.data.normalizedBrandName.size() > 0
+        && request.resource.data.slugCandidate is string
+        && request.resource.data.sourceType is string
+        && request.resource.data.sourceType == "manual_user_suggestion"
+        && request.resource.data.status is string
+        && request.resource.data.status == "pending"
+        && (
+          !("adminNotes" in request.resource.data.keys())
+          || request.resource.data.adminNotes == null
+        )
+        && (
+          !("rejectionReason" in request.resource.data.keys())
+          || request.resource.data.rejectionReason == null
+        )
+        && (
+          !("resolvedByUserId" in request.resource.data.keys())
+          || request.resource.data.resolvedByUserId == null
+        )
+        && (
+          !("resolvedAt" in request.resource.data.keys())
+          || request.resource.data.resolvedAt == null
+        )
+        && (
+          !("createdBrandId" in request.resource.data.keys())
+          || request.resource.data.createdBrandId == null
+        )
+        && (
+          !("mergedIntoBrandId" in request.resource.data.keys())
+          || request.resource.data.mergedIntoBrandId == null
+        );
+      allow read: if isSignedIn() && (
+        isSuperAdmin()
+        || (resource.data.submittedByUserId is string && resource.data.submittedByUserId == request.auth.uid)
+      );
+      allow update: if isSignedIn()
+        && isSuperAdmin()
+        && (
+          !isFinalSuggestionStatus(resource.data.status)
+          || request.resource.data.status == resource.data.status
+        );
+      allow delete: if isSignedIn() && isSuperAdmin();
+    }
+
+    match /suggestion_action_logs/{logId} {
+      allow read: if isSignedIn() && isSuperAdmin();
+      allow create, update, delete: if isSignedIn() && isSuperAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.brandId is string
+        && canManageBrand(request.resource.data.brandId);
+      allow update, delete: if isSignedIn()
+        && resource.data.brandId is string
+        && canManageBrand(resource.data.brandId);
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId is string
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.targetType is string
+        && validReviewTargetType(request.resource.data.targetType)
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && reviewId == expectedReviewId(
+          request.resource.data.userId,
+          request.resource.data.targetType,
+          request.resource.data.targetId
+        )
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string;
+      allow update: if isSignedIn()
+        && resource.data.userId is string
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.targetType == resource.data.targetType
+        && request.resource.data.targetId == resource.data.targetId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.targetType is string
+        && validReviewTargetType(request.resource.data.targetType)
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && reviewId == expectedReviewId(
+          request.resource.data.userId,
+          request.resource.data.targetType,
+          request.resource.data.targetId
+        )
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string;
+      allow delete: if isSignedIn()
+        && resource.data.userId is string
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /brews/{brewId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /event_usage/{usageId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin()
+        || (resource.data.userId is string && resource.data.userId == request.auth.uid)
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.userId is string
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.eventId is string
+        && request.resource.data.eventId.size() > 0
+        && request.resource.data.actionType is string
+        && request.resource.data.actionType in ["create", "join"]
+        && request.resource.data.createdAt is int;
+      allow update, delete: if false;
+    }
+
+    match /claim_requests/{requestId} {
+      allow create: if isSignedIn()
+        && request.resource.data.userId is string
+        && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (
+        isSuperAdmin()
+        || (resource.data.userId is string && resource.data.userId == request.auth.uid)
+      );
+      allow update, delete: if isSignedIn() && isSuperAdmin();
+    }
+  }
+}

@@ -82,7 +82,7 @@ enum class MeetJoinFailureReason {
 
 class MeetViewModel : ViewModel() {
     companion object {
-        private const val TAG = "CreateMeetDebug"
+        private const val TAG = "MeetViewModel"
         const val DEFAULT_COFFEE_INVITE_MESSAGE = "Benimle bir kahve içmek ister misin?"
     }
 
@@ -134,13 +134,10 @@ class MeetViewModel : ViewModel() {
     private var authStateListener: FirebaseAuth.AuthStateListener? = null
     private val joinInFlightIds = mutableSetOf<String>()
     private var createInFlight by mutableStateOf(false)
-    var createMeetDebugTrace by mutableStateOf<String?>(null)
-        private set
 
     init {
         viewModelScope.launch {
             MeetRepository.eventsFlow.collect { list ->
-                Log.d("MEET_DEBUG", "VIEWMODEL RECEIVED size=${list.size}")
                 meets = list
             }
         }
@@ -271,10 +268,9 @@ class MeetViewModel : ViewModel() {
 
         return try {
             MeetRepository.replaceParticipants(meetId, meet.participants - uid)
-            Log.d("MEET_DEBUG", "leaveMeet success eventId=$meetId userId=$uid")
             true
         } catch (error: Throwable) {
-            Log.e("MEET_DEBUG", "leaveMeet failed eventId=$meetId userId=$uid", error)
+            Log.e(TAG, "leaveMeet failed eventId=$meetId userId=$uid", error)
             false
         }
     }
@@ -282,10 +278,9 @@ class MeetViewModel : ViewModel() {
     suspend fun cancelMeet(meetId: String): Boolean {
         val meet = meets.firstOrNull { it.id == meetId } ?: return false
         if (meet.hostId != currentUserId) return false
-        Log.d("MEET_DEBUG", "cancelMeet called eventId=$meetId")
         val result = MeetRepository.cancelMeet(meetId)
         if (result.isFailure) {
-            Log.e("MEET_DEBUG", "cancelMeet failed for eventId=$meetId", result.exceptionOrNull())
+            Log.e(TAG, "cancelMeet failed for eventId=$meetId", result.exceptionOrNull())
             return false
         }
         return true
@@ -306,53 +301,42 @@ class MeetViewModel : ViewModel() {
         businessOffer: BusinessOffer?,
         debugBypassEntitlementGate: Boolean = false
     ): MeetCreateAttemptResult {
-        Log.d("MEET_DEBUG", "createMeet called")
-        createMeetDebugTrace = "start"
         val uid = FirebaseAuthRepository.currentUser?.uid?.trim().orEmpty()
         if (uid.isBlank()) {
-            createMeetDebugTrace = "auth_missing_user"
             trackMeetCreateFailed(MeetCreateFailureReason.NOT_SIGNED_IN)
             return MeetCreateAttemptResult.Failure(MeetCreateFailureReason.NOT_SIGNED_IN)
         }
         if (createInFlight) {
-            createMeetDebugTrace = "create_in_flight"
             trackMeetCreateFailed(MeetCreateFailureReason.IN_PROGRESS)
             return MeetCreateAttemptResult.Failure(MeetCreateFailureReason.IN_PROGRESS)
         }
 
         if (!debugBypassEntitlementGate) {
             val snapshot = try {
-                createMeetDebugTrace = "load_membership_snapshot"
                 loadMembershipSnapshot(uid)
             } catch (error: Throwable) {
-                createMeetDebugTrace = "load_membership_snapshot_failed:${error.javaClass.simpleName}:${error.message}"
                 Log.e(TAG, "createMeet failed at membership snapshot", error)
                 trackMeetCreateFailed(MeetCreateFailureReason.STORE_ERROR)
                 return MeetCreateAttemptResult.Failure(MeetCreateFailureReason.STORE_ERROR)
             }
             applySnapshot(snapshot, allowActions = true)
             if (!snapshot.canCreate) {
-                createMeetDebugTrace = "membership_limit_reached"
                 trackMeetCreateFailed(MeetCreateFailureReason.MONTHLY_LIMIT_REACHED)
                 return MeetCreateAttemptResult.Failure(MeetCreateFailureReason.MONTHLY_LIMIT_REACHED)
             }
             if (maxParticipants > snapshot.entitlements.maxAttendeesPerEvent) {
-                createMeetDebugTrace = "invalid_capacity_above_plan_limit"
                 trackMeetCreateFailed(MeetCreateFailureReason.ATTENDEE_LIMIT_EXCEEDED)
                 return MeetCreateAttemptResult.Failure(MeetCreateFailureReason.ATTENDEE_LIMIT_EXCEEDED)
             }
         } else {
-            createMeetDebugTrace = "debug_bypass_membership_gate"
         }
         if (maxParticipants < 2) {
-            createMeetDebugTrace = "invalid_capacity_below_min"
             trackMeetCreateFailed(MeetCreateFailureReason.INVALID_CAPACITY)
             return MeetCreateAttemptResult.Failure(MeetCreateFailureReason.INVALID_CAPACITY)
         }
 
         createInFlight = true
         return try {
-            createMeetDebugTrace = "repository_create_meet"
             val eventId = MeetRepository.createMeet(
                 title = title,
                 description = description,
@@ -368,7 +352,6 @@ class MeetViewModel : ViewModel() {
                 brewingType = brewingType,
                 businessOffer = businessOffer
             )
-            createMeetDebugTrace = "repository_create_meet_success:eventId=$eventId"
             AnalyticsProvider.tracker.logEvent(
                 AnalyticsEvents.MEET_CREATED,
                 mapOf(
@@ -388,10 +371,8 @@ class MeetViewModel : ViewModel() {
             }
             runCatching { UserTasteProfileRepository.onEventCreated(purpose) }
             runCatching { refreshEntitlementsInternal() }
-            createMeetDebugTrace = "success"
             MeetCreateAttemptResult.Success
         } catch (error: Throwable) {
-            createMeetDebugTrace = "repository_create_meet_failed:${error.javaClass.simpleName}:${error.message}"
             Log.e(TAG, "createMeet failed at repository stage", error)
             trackMeetCreateFailed(MeetCreateFailureReason.STORE_ERROR)
             MeetCreateAttemptResult.Failure(MeetCreateFailureReason.STORE_ERROR)
@@ -500,7 +481,6 @@ class MeetViewModel : ViewModel() {
         val normalizedSource = AnalyticsProvider.normalizeSource(source)
         val inviteId = resolveInviteId(senderId, recipientId)
 
-        Log.e("INVITE_DEBUG", "sendCoffeeBuddyInvite start sender=$senderId recipient=$recipientId")
 
         if (senderId.isBlank() || senderId == "guest") {
             throw IllegalStateException("not_signed_in")
@@ -527,7 +507,6 @@ class MeetViewModel : ViewModel() {
             )
             .getOrThrow()
 
-        Log.e("INVITE_DEBUG", "sendCoffeeBuddyInvite success result=$result")
         if (result) {
             AnalyticsProvider.tracker.logEvent(
                 AnalyticsEvents.INVITE_SENT,
@@ -552,7 +531,7 @@ class MeetViewModel : ViewModel() {
         }
         result
     }.onFailure { e ->
-        Log.e("INVITE_DEBUG", "sendCoffeeBuddyInvite failed -> ${e.message}", e)
+        Log.e(TAG, "sendCoffeeBuddyInvite failed -> ${e.message}", e)
         AnalyticsProvider.tracker.logEvent(
             AnalyticsEvents.INVITE_SEND_FAILED,
             mapOf(
@@ -676,10 +655,6 @@ class MeetViewModel : ViewModel() {
         eventId: String? = null
     ): Result<String> = runCatching {
         val currentUid = currentUserId.trim()
-        Log.d(
-            "COFFEE_CHAT_DEBUG",
-            "openCoffeeBuddyChat called inviteId=${inviteId.trim()} currentUserId=$currentUid"
-        )
         if (currentUid.isBlank() || currentUid == "guest") {
             throw IllegalStateException("not_signed_in")
         }
@@ -689,10 +664,6 @@ class MeetViewModel : ViewModel() {
                 requesterUserId = currentUid
             )
             .getOrThrow()
-        Log.d(
-            "COFFEE_CHAT_DEBUG",
-            "openCoffeeBuddyChat success inviteId=${inviteId.trim()} chatId=$chatId"
-        )
         trackChatOpened(
             chatId = chatId,
             inviteId = inviteId,
@@ -701,11 +672,7 @@ class MeetViewModel : ViewModel() {
         )
         chatId
     }.onFailure { error ->
-        Log.e(
-            "COFFEE_CHAT_DEBUG",
-            "openCoffeeBuddyChat failed inviteId=${inviteId.trim()} message=${error.message}",
-            error
-        )
+        Log.e(TAG, "openCoffeeBuddyChat failed inviteId=${inviteId.trim()}", error)
     }
 
     fun trackChatOpened(

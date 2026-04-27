@@ -30,6 +30,9 @@ android {
 
         val mapsApiKey: String = project.findProperty("MAPS_API_KEY") as String? ?: ""
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+
+        val webClientId: String = project.findProperty("WEB_CLIENT_ID") as String? ?: ""
+        buildConfigField("String", "WEB_CLIENT_ID", "\"$webClientId\"")
     }
 
     buildTypes {

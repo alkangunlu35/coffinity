@@ -9,8 +9,8 @@ import kotlinx.coroutines.tasks.await
 
 object FirebaseAuthRepository {
 
-    const val WEB_CLIENT_ID =
-        "736493185688-mib1g2a3v60eedp8b2akr7p0j69lhiq1.apps.googleusercontent.com"
+    val WEB_CLIENT_ID: String
+        get() = com.icoffee.app.BuildConfig.WEB_CLIENT_ID
 
     private val auth: FirebaseAuth
         get() = FirebaseServiceLocator.auth

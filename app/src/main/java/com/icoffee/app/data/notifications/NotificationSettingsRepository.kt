@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 object NotificationSettingsRepository {
-    private const val TAG = "FCM_DEBUG"
+    private const val TAG = "NotificationSettings"
 
     private val ioScope = CoroutineScope(Dispatchers.IO)
 
@@ -78,56 +78,41 @@ object NotificationSettingsRepository {
     fun syncCurrentUserToken() {
         val uid = FirebaseAuthRepository.currentUser?.uid.orEmpty()
         if (uid.isBlank()) {
-            Log.d(TAG, "syncCurrentUserToken skipped: no signed-in user")
             return
         }
-        Log.d(TAG, "syncCurrentUserToken started for user=$uid")
         FirebaseMessaging.getInstance().token
             .addOnSuccessListener { token ->
                 if (token.isNullOrBlank()) {
-                    Log.d(TAG, "syncCurrentUserToken success but token was blank")
                     return@addOnSuccessListener
                 }
                 val tokenDocId = sha256(token)
-                Log.d(TAG, "FCM token retrieved for user=$uid tokenDocId=$tokenDocId")
                 ioScope.launch {
                     upsertDeviceToken(uid, token)
-                        .onSuccess { Log.d(TAG, "FCM token stored for user=$uid tokenDocId=$tokenDocId") }
+                        .onSuccess {
                         .onFailure { error ->
-                            Log.e(
-                                TAG,
-                                "FCM token store failed for user=$uid tokenDocId=$tokenDocId message=${error.message}",
-                                error
-                            )
+                            Log.e(TAG, "FCM token store failed", error)
                         }
                 }
             }
             .addOnFailureListener { error ->
-                Log.e(TAG, "syncCurrentUserToken failed for user=$uid message=${error.message}", error)
+                Log.e(TAG, "syncCurrentUserToken failed", error)
             }
     }
 
     fun onNewToken(token: String) {
         val uid = FirebaseAuthRepository.currentUser?.uid.orEmpty()
         if (uid.isBlank()) {
-            Log.d(TAG, "onNewToken skipped: no signed-in user")
             return
         }
         if (token.isBlank()) {
-            Log.d(TAG, "onNewToken skipped: blank token")
             return
         }
         val tokenDocId = sha256(token)
-        Log.d(TAG, "onNewToken received for user=$uid tokenDocId=$tokenDocId")
         ioScope.launch {
             upsertDeviceToken(uid, token)
-                .onSuccess { Log.d(TAG, "onNewToken stored for user=$uid tokenDocId=$tokenDocId") }
+                .onSuccess {
                 .onFailure { error ->
-                    Log.e(
-                        TAG,
-                        "onNewToken store failed for user=$uid tokenDocId=$tokenDocId message=${error.message}",
-                        error
-                    )
+                    Log.e(TAG, "onNewToken store failed", error)
                 }
         }
     }

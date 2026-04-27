@@ -88,7 +88,6 @@ object NotificationSettingsRepository {
                 val tokenDocId = sha256(token)
                 ioScope.launch {
                     upsertDeviceToken(uid, token)
-                        .onSuccess {
                         .onFailure { error ->
                             Log.e(TAG, "FCM token store failed", error)
                         }
@@ -110,7 +109,6 @@ object NotificationSettingsRepository {
         val tokenDocId = sha256(token)
         ioScope.launch {
             upsertDeviceToken(uid, token)
-                .onSuccess {
                 .onFailure { error ->
                     Log.e(TAG, "onNewToken store failed", error)
                 }

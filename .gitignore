@@ -17,7 +17,6 @@ functions/node_modules
 functions/.firebase
 firebase-debug.log
 
-# Auto-generated entries
 # Dependencies
 node_modules/
 npm-debug.log*
@@ -49,6 +48,9 @@ Thumbs.db
 *.temp
 .cache/
 
-# Sensitive files (auto-detected)
-build.gradle.kts
-
+# Sensitive files
+google-services.json
+*.keystore
+*.jks
+key.properties
+secrets.properties

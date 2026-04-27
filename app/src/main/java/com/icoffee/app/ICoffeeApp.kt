@@ -1,6 +1,10 @@
+// FILE: app/src/main/java/com/icoffee/app/ICoffeeApp.kt
+// FULL REPLACEMENT
+
 package com.icoffee.app
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,18 +43,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
+import com.google.android.gms.maps.model.LatLng
 import com.icoffee.app.data.CoffeeRepository
 import com.icoffee.app.data.MeetRepository
 import com.icoffee.app.data.growth.GrowthAnalytics
 import com.icoffee.app.data.growth.GrowthEventNames
 import com.icoffee.app.navigation.AppRoute
+import com.icoffee.app.notifications.NotificationTapDestination
+import com.icoffee.app.notifications.NotificationTapRouter
 import com.icoffee.app.ui.components.AppBottomBar
+import com.icoffee.app.ui.location.LocationPickerScreen
 import com.icoffee.app.ui.screens.beans.CountryBeanDetailScreen
 import com.icoffee.app.ui.screens.beans.CountryBeansScreen
 import com.icoffee.app.ui.screens.brand.BrandAdminPanelScreen
@@ -90,10 +100,11 @@ fun ICoffeeApp() {
         context.getSharedPreferences("coffinity_ux", android.content.Context.MODE_PRIVATE)
     }
     var showOnboarding by rememberSaveable {
-        mutableStateOf(!prefs.getBoolean("onboarding_done", false))
+        mutableStateOf(false)
     }
 
     val navController = rememberNavController()
+    val pendingNotificationDestination by NotificationTapRouter.pendingDestination.collectAsState()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
@@ -104,6 +115,58 @@ fun ICoffeeApp() {
         AppRoute.Scan.route,
         AppRoute.Profile.route
     )
+
+    LaunchedEffect(pendingNotificationDestination?.deliveryKey, navController) {
+        val pending = pendingNotificationDestination ?: return@LaunchedEffect
+        val destination = NotificationTapRouter.consumePendingDestination(pending.deliveryKey)
+            ?: return@LaunchedEffect
+        val safePopUpId = navController.graph.findStartDestination().id
+
+        when (destination) {
+            is NotificationTapDestination.EventDetail -> {
+                navController.navigate(AppRoute.eventDetail(destination.eventId)) {
+                    launchSingleTop = true
+                    restoreState = true
+                    popUpTo(safePopUpId) {
+                        saveState = true
+                    }
+                }
+                Log.d(
+                    "NotificationRouter",
+                    "NOTIF_ROUTE_NAVIGATED key=${destination.deliveryKey} destination=event_detail eventId=${destination.eventId}"
+                )
+            }
+
+            is NotificationTapDestination.Chat -> {
+                NotificationTapRouter.queuePendingChatDestination(destination)
+                navController.navigate(AppRoute.Meet.route) {
+                    launchSingleTop = true
+                    restoreState = true
+                    popUpTo(safePopUpId) {
+                        saveState = true
+                    }
+                }
+                Log.d(
+                    "NotificationRouter",
+                    "NOTIF_ROUTE_NAVIGATED key=${destination.deliveryKey} destination=chat chatId=${destination.chatId} currentRoute=${currentRoute.orEmpty()}"
+                )
+            }
+
+            is NotificationTapDestination.Social -> {
+                navController.navigate(AppRoute.Meet.route) {
+                    launchSingleTop = true
+                    restoreState = true
+                    popUpTo(safePopUpId) {
+                        saveState = true
+                    }
+                }
+                Log.d(
+                    "NotificationRouter",
+                    "NOTIF_ROUTE_NAVIGATED key=${destination.deliveryKey} destination=social inviteId=${destination.inviteId.orEmpty()}"
+                )
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
@@ -183,11 +246,20 @@ fun ICoffeeApp() {
                 )
             }
 
-            composable(AppRoute.Meet.route) {
+            composable(
+                route = AppRoute.Meet.route,
+                deepLinks = listOf(
+                    navDeepLink { uriPattern = "coffinity://meet" },
+                    navDeepLink { uriPattern = "https://coffinity.net/meet" }
+                )
+            ) {
                 MeetScreen(
                     isUserSignedIn = isUserSignedIn,
                     onCreateMeet = {
                         navController.navigate(AppRoute.CreateMeet.route) { launchSingleTop = true }
+                    },
+                    onRequestSignUp = {
+                        navController.navigate(AppRoute.SignUp.route) { launchSingleTop = true }
                     },
                     onRequestSignIn = {
                         navController.navigate(AppRoute.signIn()) { launchSingleTop = true }
@@ -359,7 +431,12 @@ fun ICoffeeApp() {
                 val methodId = entry.arguments?.getString("methodId").orEmpty()
                 BrewingDetailScreen(
                     methodId = methodId,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onRequestSignIn = {
+                        if (!isUserSignedIn) {
+                            navController.navigate(AppRoute.signIn()) { launchSingleTop = true }
+                        }
+                    }
                 )
             }
 
@@ -367,7 +444,11 @@ fun ICoffeeApp() {
                 MeetListScreen(
                     onBack = { navController.popBackStack() },
                     onCreateMeet = {
-                        navController.navigate(AppRoute.CreateMeet.route) { launchSingleTop = true }
+                        if (isUserSignedIn) {
+                            navController.navigate(AppRoute.CreateMeet.route) { launchSingleTop = true }
+                        } else {
+                            navController.navigate(AppRoute.SignUp.route) { launchSingleTop = true }
+                        }
                     },
                     onEventClick = { meetId ->
                         navController.navigate(AppRoute.eventDetail(meetId)) { launchSingleTop = true }
@@ -385,14 +466,32 @@ fun ICoffeeApp() {
                     .ifBlank { null }
 
                 CreateMeetScreen(
-                    onBack = { navController.popBackStack() },
-                    isUserSignedIn = isUserSignedIn,
-                    onRequestSignIn = {
-                        navController.navigate(AppRoute.signIn()) { launchSingleTop = true }
+    onBack = { navController.popBackStack() },
+    isUserSignedIn = isUserSignedIn,
+    onRequestSignIn = {
+        navController.navigate(AppRoute.SignUp.route) { launchSingleTop = true }
+    },
+    onOpenPaywall = { navController.navigate("paywall") },
+
+    // 🔥 EKLENEN KISIM
+    onOpenLocationPicker = {
+        navController.navigate(AppRoute.LocationPicker.route)
+    },
+
+    meetViewModel = meetViewModel,
+    editMeetId = editMeetId
+)
+            }
+
+            composable(AppRoute.LocationPicker.route) {
+                LocationPickerScreen(
+                    onLocationSelected = { lat, lng, name ->
+                        meetViewModel.setLocation(lat, lng)
+                        navController.popBackStack()
                     },
-                    onOpenPaywall = { navController.navigate("paywall") },
-                    meetViewModel = meetViewModel,
-                    editMeetId = editMeetId
+                    onBack = {
+                        navController.popBackStack()
+                    }
                 )
             }
 
@@ -401,7 +500,7 @@ fun ICoffeeApp() {
                 arguments = listOf(navArgument("meetId") { defaultValue = "" }),
                 deepLinks = listOf(
                     navDeepLink { uriPattern = "coffinity://event/{meetId}" },
-                    navDeepLink { uriPattern = "https://coffinity.app/event/{meetId}" }
+                    navDeepLink { uriPattern = "https://coffinity.net/event/{meetId}" }
                 )
             ) { entry ->
                 val meetId = entry.arguments?.getString("meetId").orEmpty()
@@ -448,7 +547,11 @@ fun ICoffeeApp() {
             composable(AppRoute.SignUp.route) {
                 MeetSignUpScreen(
                     authViewModel = authViewModel,
-                    onBack = { navController.popBackStack() },
+                    onBack = {
+                        if (!navController.popBackStack()) {
+                            navController.navigateUp()
+                        }
+                    },
                     onJoinCommunity = { navController.popBackStack() },
                     onSignIn = {
                         navController.navigate(AppRoute.signIn()) {
@@ -466,7 +569,11 @@ fun ICoffeeApp() {
                 val redirectRoute = entry.arguments?.getString(AppRoute.SIGN_IN_REDIRECT_ARG).orEmpty()
                 MeetSignInScreen(
                     authViewModel = authViewModel,
-                    onBack = { navController.popBackStack() },
+                    onBack = {
+                        if (!navController.popBackStack()) {
+                            navController.navigateUp()
+                        }
+                    },
                     onSignInSuccess = {
                         val safeRedirect = sanitizeSignInRedirectRoute(redirectRoute)
                         if (safeRedirect != null) {

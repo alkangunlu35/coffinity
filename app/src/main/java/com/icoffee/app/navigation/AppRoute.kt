@@ -1,3 +1,6 @@
+// FILE: app/src/main/java/com/icoffee/app/navigation/AppRoute.kt
+// FULL REPLACEMENT
+
 package com.icoffee.app.navigation
 
 import android.net.Uri
@@ -29,20 +32,30 @@ sealed class AppRoute(val route: String) {
     data object MenuScanner : AppRoute("scan/menu")
     data object MenuScanResult : AppRoute("scan/menu/result/{scanId}")
 
+    // 🔥 YENİ EKLEDİĞİMİZ
+    data object LocationPicker : AppRoute("meet/location-picker")
+
     companion object {
         const val EDIT_MEET_ID_ARG = "editMeetId"
         const val SIGN_IN_REDIRECT_ARG = "redirect"
-        val createMeetRoutePattern: String = "meet/create?$EDIT_MEET_ID_ARG={$EDIT_MEET_ID_ARG}"
-        val signInRoutePattern: String = "meet/signin?$SIGN_IN_REDIRECT_ARG={$SIGN_IN_REDIRECT_ARG}"
 
-        fun detail(coffeeId: String): String = "detail/${coffeeId}"
-        fun brewingDetail(methodId: String): String = "brewing/${methodId}"
-        fun countryBeansDetail(countryId: String): String = "beans/country/${countryId}"
-        fun brandDetail(brandId: String): String = "brand/${brandId}"
+        val createMeetRoutePattern: String =
+            "meet/create?$EDIT_MEET_ID_ARG={$EDIT_MEET_ID_ARG}"
+
+        val signInRoutePattern: String =
+            "meet/signin?$SIGN_IN_REDIRECT_ARG={$SIGN_IN_REDIRECT_ARG}"
+
+        fun detail(coffeeId: String): String = "detail/$coffeeId"
+        fun brewingDetail(methodId: String): String = "brewing/$methodId"
+        fun countryBeansDetail(countryId: String): String = "beans/country/$countryId"
+        fun brandDetail(brandId: String): String = "brand/$brandId"
+
         fun brandProductDetail(brandId: String, productId: String): String =
-            "brand/${brandId}/product/${productId}"
+            "brand/$brandId/product/$productId"
+
         fun brandManage(brandId: String): String = "brand/manage/$brandId"
-        fun eventDetail(meetId: String): String = "meet/event/${meetId}"
+        fun eventDetail(meetId: String): String = "meet/event/$meetId"
+
         fun signIn(redirectRoute: String? = null): String {
             val normalized = redirectRoute?.trim().orEmpty()
             return if (normalized.isBlank()) {
@@ -51,9 +64,15 @@ sealed class AppRoute(val route: String) {
                 "meet/signin?$SIGN_IN_REDIRECT_ARG=${Uri.encode(normalized)}"
             }
         }
+
         fun createMeet(editMeetId: String? = null): String =
-            if (editMeetId.isNullOrBlank()) CreateMeet.route else "meet/create?$EDIT_MEET_ID_ARG=$editMeetId"
+            if (editMeetId.isNullOrBlank()) {
+                CreateMeet.route
+            } else {
+                "meet/create?$EDIT_MEET_ID_ARG=$editMeetId"
+            }
+
         fun scanResult(code: String): String = "scan/result/$code"
-        fun menuScanResult(scanId: String): String = "scan/menu/result/${scanId}"
+        fun menuScanResult(scanId: String): String = "scan/menu/result/$scanId"
     }
 }

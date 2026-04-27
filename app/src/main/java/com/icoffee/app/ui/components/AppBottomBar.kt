@@ -80,18 +80,18 @@ fun AppBottomBar(
             .fillMaxWidth()
             .widthIn(max = 620.dp)
             .shadow(
-                elevation = 12.dp,
+                elevation = 16.dp,
                 shape = barShape,
                 clip = false,
-                ambientColor = Color(0x332A170F),
-                spotColor = Color(0x382A170F)
+                ambientColor = Color(0x4ADB9F66),
+                spotColor = Color(0x402A170F)
             )
             .clip(barShape)
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        SurfaceDarkAlt.copy(alpha = 0.84f),
-                        SurfaceDark.copy(alpha = 0.88f)
+                        SurfaceDarkAlt.copy(alpha = 0.90f),
+                        SurfaceDark.copy(alpha = 0.94f)
                     )
                 )
             )
@@ -99,17 +99,33 @@ fun AppBottomBar(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0x33FFFFFF),
-                        SurfaceStroke.copy(alpha = 0.45f)
+                        Color(0x52FFFFFF),
+                        Color(0x66D8A16A),
+                        SurfaceStroke.copy(alpha = 0.62f)
                     )
                 ),
                 shape = barShape
             )
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 1.dp, start = 14.dp, end = 14.dp)
+                .heightIn(min = 1.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color(0x4DD8A16A),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 7.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -120,12 +136,12 @@ fun AppBottomBar(
                 val interactionSource = remember { MutableInteractionSource() }
 
                 val iconColor by animateColorAsState(
-                    targetValue = if (selected) Color(0xFF2A1A10) else CreamText,
+                    targetValue = if (selected) Color(0xFF24160E) else CreamText.copy(alpha = 0.86f),
                     animationSpec = tween(220),
                     label = "bottomIconColor"
                 )
                 val labelColor by animateColorAsState(
-                    targetValue = if (selected) Color(0xFF2A1A10) else SoftText,
+                    targetValue = if (selected) Color(0xFF24160E) else SoftText.copy(alpha = 0.86f),
                     animationSpec = tween(220),
                     label = "bottomLabelColor"
                 )
@@ -144,29 +160,46 @@ fun AppBottomBar(
                                 pressedAlpha = 0.96f
                             )
                             .shadow(
-                                elevation = if (selected) 6.dp else 0.dp,
+                                elevation = if (selected) 8.dp else 2.dp,
                                 shape = RoundedCornerShape(16.dp),
                                 clip = false,
-                                ambientColor = GoldAccentLight.copy(alpha = if (selected) 0.22f else 0f),
-                                spotColor = GoldAccentLight.copy(alpha = if (selected) 0.20f else 0f)
+                                ambientColor = GoldAccentLight.copy(alpha = if (selected) 0.28f else 0.06f),
+                                spotColor = GoldAccentLight.copy(alpha = if (selected) 0.26f else 0.04f)
                             )
                             .clip(RoundedCornerShape(16.dp))
                             .background(
                                 if (selected) {
                                     Brush.horizontalGradient(
                                         listOf(
-                                            GoldAccentLight.copy(alpha = 0.90f),
-                                            GoldAccent.copy(alpha = 0.92f)
+                                            GoldAccentLight.copy(alpha = 0.96f),
+                                            GoldAccent.copy(alpha = 0.98f)
                                         )
                                     )
                                 } else {
                                     Brush.horizontalGradient(
                                         listOf(
-                                            Color.Transparent,
-                                            Color.Transparent
+                                            Color(0x1CF6E7D4),
+                                            Color(0x0F1A100B)
                                         )
                                     )
                                 }
+                            )
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.horizontalGradient(
+                                    if (selected) {
+                                        listOf(
+                                            Color(0x88FFF4E2),
+                                            Color(0x66D8A16A)
+                                        )
+                                    } else {
+                                        listOf(
+                                            Color(0x2EFFFFFF),
+                                            Color(0x26D8A16A)
+                                        )
+                                    }
+                                ),
+                                shape = RoundedCornerShape(16.dp)
                             )
                             .clickable(
                                 interactionSource = interactionSource,
@@ -210,7 +243,9 @@ fun AppBottomBar(
                             }
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                                ),
                                 color = labelColor,
                                 maxLines = 1
                             )

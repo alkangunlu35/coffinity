@@ -1,7 +1,9 @@
 package com.icoffee.app.data
 
+import android.util.Log
 import com.icoffee.app.data.model.CoffeeBuddyCandidate
 import com.icoffee.app.data.model.CoffeeBuddyDiscoveryResult
+import com.icoffee.app.data.model.CoffeeBuddyIdentityProfile
 import com.icoffee.app.data.model.CoffeeBuddySignal
 import com.icoffee.app.data.model.CoffeeBuddySignalType
 import com.icoffee.app.data.model.CoffeeMeet
@@ -19,6 +21,7 @@ object CoffeeFriendDiscoveryEngine {
 
     private const val MAX_RESULTS = 5
     private const val RECENT_EVENT_WINDOW_MS = 24 * 60 * 60 * 1000L
+    private const val DEBUG_TAG = "COFFEE_BUDDY_DEBUG"
 
     private val demoIdPrefixes = listOf("guest", "demo_", "sample_", "test_", "host_", "room_")
 
@@ -81,8 +84,13 @@ object CoffeeFriendDiscoveryEngine {
         events: List<CoffeeMeet>,
         currentUserId: String,
         selectedMood: MeetMood,
-        currentTasteProfile: UserTasteProfile
+        currentTasteProfile: UserTasteProfile,
+        discoverableIdentityProfiles: Map<String, CoffeeBuddyIdentityProfile>?
     ): CoffeeBuddyDiscoveryResult {
+        Log.d(
+            DEBUG_TAG,
+            "discover start viewerUserId=$currentUserId discoverablePoolMode=${if (discoverableIdentityProfiles == null) "fallback_no_user_query_filter" else "discoverable_query"}"
+        )
         if (currentUserId.isBlank() || currentUserId == "guest") {
             return CoffeeBuddyDiscoveryResult(
                 mood = selectedMood,
@@ -103,19 +111,67 @@ object CoffeeFriendDiscoveryEngine {
             currentTasteProfile = currentTasteProfile
         )
 
-        val candidateIds = activeEvents
-            .flatMap { event -> listOf(event.hostId) + event.participants }
+        val discoverablePool = discoverableIdentityProfiles
+            ?.keys
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+
+        val rawCandidateIds = (activeEvents
+            .flatMap { event -> listOf(event.hostId) + event.participants } + (discoverablePool ?: emptySet()))
             .distinct()
-            .filter { userId -> isEligibleUserId(userId, currentUserId) }
+
+        val afterSelfExclusion = mutableListOf<String>()
+        rawCandidateIds.forEach { userId ->
+            when {
+                userId.isBlank() -> logDrop(userId, "blank_user_id")
+                userId == currentUserId -> logDrop(userId, "self_excluded")
+                else -> afterSelfExclusion += userId
+            }
+        }
+        Log.d(DEBUG_TAG, "afterSelfExclusion=${afterSelfExclusion.joinToString(",")}")
+
+        val afterCoreEligibility = mutableListOf<String>()
+        afterSelfExclusion.forEach { userId ->
+            val normalized = normalizeToken(userId)
+            when {
+                normalized.isBlank() -> logDrop(userId, "normalized_blank")
+                demoIdPrefixes.any { prefix -> normalized.startsWith(prefix) } ->
+                    logDrop(userId, "demo_or_test_prefix")
+
+                normalized.length < 4 -> logDrop(userId, "id_too_short")
+                else -> afterCoreEligibility += userId
+            }
+        }
+        Log.d(DEBUG_TAG, "afterCoreEligibility=${afterCoreEligibility.joinToString(",")}")
+
+        val candidateIds = if (discoverablePool == null) {
+            afterCoreEligibility
+        } else {
+            afterCoreEligibility.filter { userId ->
+                val keep = userId in discoverablePool
+                if (!keep) {
+                    logDrop(userId, "discoverable_false_or_missing")
+                }
+                keep
+            }
+        }
+        Log.d(DEBUG_TAG, "afterDiscoverableFilter=${candidateIds.joinToString(",")}")
 
         val scoredCandidates = candidateIds.mapNotNull { userId ->
             val aggregate = aggregateUser(userId = userId, events = activeEvents)
-            scoreCandidate(
+            val candidate = scoreCandidate(
                 aggregate = aggregate,
                 currentContext = currentContext,
-                selectedMood = selectedMood
+                selectedMood = selectedMood,
+                identityProfile = discoverableIdentityProfiles?.get(userId)
             )
+            if (candidate == null) {
+                logDrop(userId, "scoring_returned_null")
+            }
+            candidate
         }
+        Log.d(DEBUG_TAG, "afterScoring=${scoredCandidates.map { it.userId }.joinToString(",")}")
 
         val ranked = scoredCandidates
             .sortedWith(
@@ -123,11 +179,17 @@ object CoffeeFriendDiscoveryEngine {
                     .thenByDescending { it.socialActivityCount }
                     .thenBy { it.userId }
             )
+        ranked.drop(MAX_RESULTS).forEach { dropped ->
+            logDrop(dropped.userId, "max_results_limit")
+        }
+
+        val finalCandidates = ranked.take(MAX_RESULTS)
+        Log.d(DEBUG_TAG, "afterRanking=${finalCandidates.map { it.userId }.joinToString(",")}")
 
         return CoffeeBuddyDiscoveryResult(
             mood = selectedMood,
             discoverableUserCount = ranked.size,
-            candidates = ranked.take(MAX_RESULTS),
+            candidates = finalCandidates,
             profileReady = currentTasteProfile.interactionCount >= 3 || currentUserEvents.isNotEmpty()
         )
     }
@@ -145,6 +207,10 @@ object CoffeeFriendDiscoveryEngine {
         if (demoIdPrefixes.any { prefix -> normalized.startsWith(prefix) }) return false
         if (normalized.length < 4) return false
         return true
+    }
+
+    private fun logDrop(userId: String, reason: String) {
+        Log.d(DEBUG_TAG, "drop userId=$userId reason=$reason")
     }
 
     private data class UserAggregate(
@@ -254,7 +320,8 @@ object CoffeeFriendDiscoveryEngine {
     private fun scoreCandidate(
         aggregate: UserAggregate,
         currentContext: CurrentUserContext,
-        selectedMood: MeetMood
+        selectedMood: MeetMood,
+        identityProfile: CoffeeBuddyIdentityProfile?
     ): CoffeeBuddyCandidate? {
         var score = 0
         val signals = mutableListOf<CoffeeBuddySignal>()
@@ -319,17 +386,46 @@ object CoffeeFriendDiscoveryEngine {
 
         score += (aggregate.eventIds.size * 2).coerceAtMost(8)
 
-        if (signals.isEmpty()) return null
-
         return CoffeeBuddyCandidate(
             userId = aggregate.userId,
-            displayName = aggregate.displayName,
-            cityOrArea = aggregate.cityOrArea,
+            displayName = resolveDisplayName(identityProfile, aggregate),
+            avatarUrl = identityProfile?.avatarUrl?.trim()?.takeIf { it.isNotBlank() },
+            cityOrArea = resolveCityOrArea(identityProfile, aggregate.cityOrArea),
             score = score.coerceIn(0, 100),
             sharedSignals = signals.take(3),
             socialActivityCount = aggregate.eventIds.size,
             eventId = aggregate.primaryEventId
         )
+    }
+
+    private fun resolveDisplayName(
+        identityProfile: CoffeeBuddyIdentityProfile?,
+        aggregate: UserAggregate
+    ): String? {
+        val fromDisplayName = identityProfile
+            ?.displayName
+            ?.trim()
+            ?.takeIf { it.length >= 2 }
+        if (fromDisplayName != null) return fromDisplayName
+
+        val fromEmail = identityProfile
+            ?.email
+            ?.substringBefore("@")
+            ?.replace(Regex("[._-]+"), " ")
+            ?.trim()
+            ?.takeIf { it.length >= 2 }
+        if (fromEmail != null) return fromEmail
+
+        return aggregate.displayName?.trim()?.takeIf { it.length >= 2 }
+    }
+
+    private fun resolveCityOrArea(
+        identityProfile: CoffeeBuddyIdentityProfile?,
+        inferredCityOrArea: String?
+    ): String? {
+        if (!inferredCityOrArea.isNullOrBlank()) return inferredCityOrArea
+        return identityProfile?.city?.trim()?.takeIf { it.isNotBlank() }
+            ?: identityProfile?.country?.trim()?.takeIf { it.isNotBlank() }
     }
 
     private fun brewFromCoffeeType(type: CoffeeType): String? = when (type) {

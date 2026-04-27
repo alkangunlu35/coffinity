@@ -1,0 +1,27 @@
+package com.icoffee.app.analytics
+
+object AnalyticsParams {
+    const val SOURCE = "source"
+    const val ENTRY_SOURCE = "entry_source"
+    const val INVITE_ID = "invite_id"
+    const val TARGET_USER_ID = "target_user_id"
+    const val TIME_OPTION = "time_option"
+    const val HAS_NOTE = "has_note"
+    const val HAS_LOCATION = "has_location"
+    const val COFFEE_PREF = "coffee_pref"
+    const val REASON = "reason"
+    const val EVENT_ID = "event_id"
+    const val ACTOR_USER_ID = "actor_user_id"
+    const val CHAT_ID = "chat_id"
+    const val MESSAGE_SOURCE = "message_source"
+    const val MESSAGE_LENGTH_BUCKET = "message_length_bucket"
+    const val PURPOSE = "purpose"
+    const val HAS_BREWING_TYPE = "has_brewing_type"
+    const val MAX_PARTICIPANTS = "max_participants"
+    const val TIME_BUCKET = "time_bucket"
+    const val HOST_ID = "host_id"
+    const val PARTICIPANT_COUNT_AFTER_JOIN = "participant_count_after_join"
+    const val TYPE = "type"
+    const val ROUTE = "route"
+    const val ROLE = "role"
+}

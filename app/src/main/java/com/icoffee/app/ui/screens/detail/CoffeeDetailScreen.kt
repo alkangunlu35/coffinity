@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.icoffee.app.R
 import java.util.Locale
 import com.icoffee.app.data.model.Coffee
+import com.icoffee.app.localization.AppLocaleManager
 import com.icoffee.app.ui.components.TastingNoteChip
 import com.icoffee.app.ui.theme.Caramel500
 import com.icoffee.app.ui.theme.CoffeeElevation
@@ -42,12 +44,16 @@ import com.icoffee.app.ui.theme.CoffeeRadius
 import com.icoffee.app.ui.theme.CoffeeSpacing
 import com.icoffee.app.ui.theme.Espresso700
 import com.icoffee.app.ui.theme.Espresso900
+import com.icoffee.app.util.BeanOriginTextLocalizer
+import com.icoffee.app.util.CountryDisplayNames
 
 @Composable
 fun CoffeeDetailScreen(
     coffee: Coffee,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val languageCode = AppLocaleManager.currentLanguage(context).code
     val coffeeNotes = stringArrayResource(coffee.notesRes)
     LazyColumn(
         modifier = Modifier
@@ -130,7 +136,12 @@ fun CoffeeDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(CoffeeSpacing.xs)
             ) {
                 coffeeNotes.forEach { note ->
-                    TastingNoteChip(text = note)
+                    TastingNoteChip(
+                        text = BeanOriginTextLocalizer.localizedFlavorNote(
+                            rawNote = note,
+                            appLanguageCode = languageCode
+                        )
+                    )
                 }
             }
         }
@@ -154,7 +165,10 @@ fun CoffeeDetailScreen(
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = Color(0xFF4C3220)
                     )
-                    InfoRow(label = stringResource(R.string.coffee_detail_label_origin), value = coffee.origin)
+                    InfoRow(
+                        label = stringResource(R.string.coffee_detail_label_origin),
+                        value = CountryDisplayNames.localizedName(coffee.origin, languageCode)
+                    )
                     InfoRow(label = stringResource(R.string.coffee_detail_label_roast), value = coffee.roast)
                     InfoRow(label = stringResource(R.string.coffee_detail_label_altitude), value = coffee.altitude)
                 }

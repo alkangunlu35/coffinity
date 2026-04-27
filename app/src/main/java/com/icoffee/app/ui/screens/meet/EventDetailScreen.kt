@@ -1,9 +1,12 @@
+// FILE: app/src/main/java/com/icoffee/app/ui/screens/meet/EventDetailScreen.kt
+// FULL REPLACEMENT
+
 package com.icoffee.app.ui.screens.meet
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -19,9 +22,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -40,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -58,7 +62,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.icoffee.app.R
+import com.icoffee.app.data.firebase.model.FirestoreUser
+import com.icoffee.app.data.firebase.repository.FirestoreUsersRepository
 import com.icoffee.app.data.growth.GrowthAnalytics
 import com.icoffee.app.data.growth.GrowthEventNames
 import com.icoffee.app.data.model.BusinessOffer
@@ -67,7 +74,6 @@ import com.icoffee.app.data.model.EventHostType
 import com.icoffee.app.data.model.OfferPaymentMode
 import com.icoffee.app.data.model.UserType
 import com.icoffee.app.data.model.formattedPriceOrNull
-import com.icoffee.app.ui.theme.CoffeeSpacing
 import com.icoffee.app.viewmodel.MeetJoinAttemptResult
 import com.icoffee.app.viewmodel.MeetJoinFailureReason
 import com.icoffee.app.viewmodel.MeetViewModel
@@ -148,8 +154,8 @@ fun EventDetailScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF5EFE7)),
-        contentPadding = PaddingValues(horizontal = CoffeeSpacing.lg, vertical = CoffeeSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(CoffeeSpacing.lg)
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         item {
             EventHero(
@@ -395,9 +401,13 @@ fun EventDetailScreen(
                 TextButton(
                     onClick = {
                         showCancelConfirm = false
-                        if (meetViewModel.cancelMeet(event.id)) {
-                            Toast.makeText(context, cancelSuccess, Toast.LENGTH_SHORT).show()
-                            onBack()
+                        scope.launch {
+                            if (meetViewModel.cancelMeet(event.id)) {
+                                Toast.makeText(context, cancelSuccess, Toast.LENGTH_SHORT).show()
+                                onBack()
+                            } else {
+                                Toast.makeText(context, genericErrorMessage, Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 ) {
@@ -443,9 +453,14 @@ fun EventDetailScreen(
                 TextButton(
                     onClick = {
                         showLeaveConfirm = false
-                        if (meetViewModel.leaveMeet(event.id)) {
-                            Toast.makeText(context, leaveSuccess, Toast.LENGTH_SHORT).show()
-                            meetViewModel.refreshEntitlements()
+                        scope.launch {
+                            val leaveSucceeded = meetViewModel.leaveMeet(event.id)
+                            if (leaveSucceeded) {
+                                Toast.makeText(context, leaveSuccess, Toast.LENGTH_SHORT).show()
+                                meetViewModel.refreshEntitlements()
+                            } else {
+                                Toast.makeText(context, genericErrorMessage, Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 ) {
@@ -851,6 +866,26 @@ private fun LocationCard(
 
 @Composable
 private fun ParticipantsCard(event: CoffeeMeet) {
+    val participantIds = event.participants
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+    val participantProfiles by produceState<List<ParticipantProfileUi>?>(initialValue = null, participantIds) {
+        if (participantIds.isEmpty()) {
+            value = emptyList()
+            return@produceState
+        }
+
+        val users = FirestoreUsersRepository.listByIds(participantIds).getOrElse { error ->
+            Log.e("MEET_DEBUG", "participants: failed to load user docs", error)
+            emptyList()
+        }
+        val usersById = users.associateBy { it.id }
+        value = participantIds.mapNotNull { userId ->
+            usersById[userId]?.toParticipantProfileUi(userId)
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -861,11 +896,112 @@ private fun ParticipantsCard(event: CoffeeMeet) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ParticipantAvatarStack(participants = event.participants)
+        ParticipantAvatarStack(
+            participantProfiles = participantProfiles,
+            participantIds = participantIds
+        )
         Text(
             text = stringResource(R.string.meet_joined_count, event.participants.size),
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             color = Color(0xFF5C3A28)
+        )
+    }
+
+    when {
+        participantIds.isEmpty() -> {
+            Text(
+                text = stringResource(R.string.meet_social_joined_count, 0),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF8A6B55),
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp)
+            )
+        }
+
+        participantProfiles == null -> Unit
+
+        participantProfiles!!.isEmpty() -> {
+            Text(
+                text = stringResource(R.string.meet_social_joined_count, participantIds.size),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF8A6B55),
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp)
+            )
+        }
+
+        else -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                participantProfiles!!.forEach { profile ->
+                    ParticipantRow(profile = profile)
+                }
+            }
+        }
+    }
+}
+
+private data class ParticipantProfileUi(
+    val displayName: String,
+    val photoUrl: String?
+)
+
+private fun FirestoreUser.toParticipantProfileUi(userId: String): ParticipantProfileUi {
+    val normalizedDisplayName = displayName.trim().takeIf { it.isNotBlank() }
+        ?: email.substringBefore("@").trim().takeIf { it.isNotBlank() }
+        ?: userId.takeLast(6)
+    return ParticipantProfileUi(
+        displayName = normalizedDisplayName,
+        photoUrl = photoUrl?.trim()?.takeIf { it.isNotBlank() }
+    )
+}
+
+@Composable
+private fun ParticipantRow(profile: ParticipantProfileUi) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFFFFCF8))
+            .border(1.dp, Color(0xFFEADDCF), RoundedCornerShape(14.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (profile.photoUrl != null) {
+            AsyncImage(
+                model = profile.photoUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, Color(0xFFEADDCF), CircleShape)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFD4B49A))
+                    .border(1.dp, Color(0xFFEADDCF), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = initialsFromName(profile.displayName),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xFF3B271B)
+                )
+            }
+        }
+
+        Text(
+            text = profile.displayName,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+            color = Color(0xFF5E4A3C),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -955,10 +1091,54 @@ private fun EventOfferSection(offer: BusinessOffer) {
 }
 
 @Composable
-private fun ParticipantAvatarStack(participants: List<String>) {
-    val visibleParticipants = if (participants.isEmpty()) listOf("host") else participants.take(3)
+private fun ParticipantAvatarStack(
+    participantProfiles: List<ParticipantProfileUi>?,
+    participantIds: List<String>
+) {
+    val visibleProfiles = participantProfiles?.take(3).orEmpty()
+    val visibleFallbackIds = if (visibleProfiles.isEmpty()) {
+        if (participantIds.isEmpty()) listOf("host") else participantIds.take(3)
+    } else {
+        emptyList()
+    }
+
     Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
-        visibleParticipants.forEachIndexed { index, id ->
+        visibleProfiles.forEachIndexed { index, profile ->
+            if (profile.photoUrl != null) {
+                AsyncImage(
+                    model = profile.photoUrl,
+                    contentDescription = profile.displayName,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, Color(0xFFFFFCF8), CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                val avatarColor = when (index % 4) {
+                    0 -> Color(0xFFD4B49A)
+                    1 -> Color(0xFFC89E7B)
+                    2 -> Color(0xFFB98B64)
+                    else -> Color(0xFFA47857)
+                }
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(avatarColor)
+                        .border(2.dp, Color(0xFFFFFCF8), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = initialsFromName(profile.displayName),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color(0xFF3B271B)
+                    )
+                }
+            }
+        }
+
+        visibleFallbackIds.forEachIndexed { index, id ->
             val avatarColor = when (index % 4) {
                 0 -> Color(0xFFD4B49A)
                 1 -> Color(0xFFC89E7B)
@@ -974,13 +1154,28 @@ private fun ParticipantAvatarStack(participants: List<String>) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = avatarLabel(id, index),
+                    text = initialsFromName(id).ifBlank { avatarLabel(id, index) },
                     style = MaterialTheme.typography.labelLarge,
                     color = Color(0xFF3B271B)
                 )
             }
         }
     }
+}
+
+private fun initialsFromName(raw: String): String {
+    val words = raw.trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+    if (words.isEmpty()) return "•"
+    val first = words.first().firstOrNull()?.uppercaseChar()?.toString().orEmpty()
+    val second = if (words.size > 1) {
+        words[1].firstOrNull()?.uppercaseChar()?.toString().orEmpty()
+    } else {
+        ""
+    }
+    val combined = (first + second).trim()
+    return combined.ifBlank { "•" }
 }
 
 private fun avatarLabel(id: String, index: Int): String {
@@ -1066,16 +1261,53 @@ private fun OfferPaymentMode.labelRes(): Int = when (this) {
 }
 
 private fun Context.openMapFor(event: CoffeeMeet) {
-    val encodedLocation = Uri.encode(event.locationName)
-    val uri = Uri.parse("geo:${event.latitude},${event.longitude}?q=${event.latitude},${event.longitude}($encodedLocation)")
-    val googleMapsIntent = Intent(Intent.ACTION_VIEW, uri).apply {
-        setPackage("com.google.android.apps.maps")
-    }
-    val fallbackIntent = Intent(Intent.ACTION_VIEW, uri)
+    val hasValidLatLng = event.latitude != 0.0 && event.longitude != 0.0
+    val hasName = event.locationName.isNotBlank()
 
     try {
-        startActivity(googleMapsIntent)
-    } catch (_: ActivityNotFoundException) {
-        startActivity(fallbackIntent)
+        val intent = when {
+            hasValidLatLng -> {
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("google.navigation:q=${event.latitude},${event.longitude}")
+                )
+            }
+
+            hasName -> {
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("geo:0,0?q=${Uri.encode(event.locationName)}")
+                )
+            }
+
+            else -> null
+        }?.apply {
+            setPackage("com.google.android.apps.maps")
+        }
+
+        if (intent != null && intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+            return
+        }
+
+        val url = when {
+            hasValidLatLng -> {
+                "https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}"
+            }
+
+            hasName -> {
+                "https://www.google.com/maps/search/?api=1&query=${Uri.encode(event.locationName)}"
+            }
+
+            else -> null
+        }
+
+        if (url != null) {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } else {
+            Toast.makeText(this, "Konum bilgisi bulunamadı", Toast.LENGTH_SHORT).show()
+        }
+    } catch (_: Exception) {
+        Toast.makeText(this, "Harita açılamadı", Toast.LENGTH_SHORT).show()
     }
 }

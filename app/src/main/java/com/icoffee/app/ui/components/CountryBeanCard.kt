@@ -26,11 +26,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.icoffee.app.R
 import com.icoffee.app.data.model.beans.CountryBeans
+import com.icoffee.app.localization.AppLocaleManager
+import com.icoffee.app.util.BeanOriginTextLocalizer
+import com.icoffee.app.util.CountryDisplayNames
 
 @Composable
 fun CountryBeanCard(
@@ -38,11 +43,13 @@ fun CountryBeanCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val languageCode = AppLocaleManager.currentLanguage(context).code
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val signatureFallback = stringResource(R.string.beans_card_signature_fallback)
     val cardElevation by animateDpAsState(
-        targetValue = if (isPressed) 5.dp else 11.dp,
+        targetValue = if (isPressed) 6.dp else 14.dp,
         animationSpec = tween(durationMillis = if (isPressed) 90 else 220),
         label = "countryCardElevation"
     )
@@ -52,7 +59,7 @@ fun CountryBeanCard(
         append(highlightedVariety?.name ?: signatureFallback)
         highlightedVariety?.flavorNotes?.firstOrNull()?.let { note ->
             append(" · ")
-            append(note)
+            append(BeanOriginTextLocalizer.localizedFlavorNote(note, languageCode))
         }
     }
 
@@ -69,25 +76,25 @@ fun CountryBeanCard(
                 elevation = cardElevation,
                 shape = RoundedCornerShape(24.dp),
                 clip = false,
-                ambientColor = Color(0x40150907),
-                spotColor = Color(0x4A150907)
+                ambientColor = Color(0x26DBA15E),
+                spotColor = Color(0x33DBA15E)
             )
             .clip(RoundedCornerShape(24.dp))
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xFF2A1710),
-                        Color(0xFF1E100B)
+                        Color(0xFF4A2A1A),
+                        Color(0xFF2B140A)
                     )
                 )
             )
-            .border(1.dp, Color(0x22F5E6D3), RoundedCornerShape(24.dp))
+            .border(1.dp, Color(0x66D8A16A), RoundedCornerShape(24.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
         Box(
             modifier = Modifier
@@ -95,9 +102,9 @@ fun CountryBeanCard(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(0x1AF5E6D3),
-                            Color(0x12150C08),
-                            Color(0x260E0705)
+                            Color(0x14FFFFFF),
+                            Color(0x06FFFFFF),
+                            Color.Transparent
                         )
                     )
                 )
@@ -130,9 +137,9 @@ fun CountryBeanCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = country.country,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color(0xFFF5E6D3),
+                    text = CountryDisplayNames.localizedName(country.country, languageCode),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFFF3E6D2),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -140,13 +147,13 @@ fun CountryBeanCard(
                 Text(
                     text = stringResource(R.string.beans_card_varieties_count, country.varieties.size),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFD6BFA7)
+                    color = Color(0xFFEADBC8).copy(alpha = 0.7f)
                 )
 
                 Text(
                     text = metadataLine,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFD6BFA7).copy(alpha = 0.94f),
+                    color = Color(0xFFEADBC8).copy(alpha = 0.5f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

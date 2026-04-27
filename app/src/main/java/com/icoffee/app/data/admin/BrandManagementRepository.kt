@@ -1,5 +1,6 @@
 package com.icoffee.app.data.admin
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.ListenerRegistration
 import com.icoffee.app.data.auth.FirebaseAuthRepository
@@ -142,10 +143,17 @@ data class BrandManagementRealtimeState(
 )
 
 object BrandManagementRepository {
+    private const val ADMIN_ROLE = "ADMIN_ROLE"
+    private const val ADMIN_LOAD = "ADMIN_LOAD"
+    private const val ADMIN_ERROR = "ADMIN_ERROR"
+    private const val BRAND_IMPORT_DEBUG = "BRAND_IMPORT_DEBUG"
+    private const val BRAND_CREATE_DEBUG = "BRAND_CREATE_DEBUG"
+    private const val BRAND_CREATE_ERROR = "BRAND_CREATE_ERROR"
 
     fun observeSessionAndManageableBrandsForCurrentUser(): Flow<BrandManagementRealtimeState> = callbackFlow {
         val authUser = FirebaseAuthRepository.currentUser
         if (authUser == null) {
+            Log.d(ADMIN_LOAD, "no_authenticated_user")
             trySend(BrandManagementRealtimeState(session = null, brands = emptyList()))
             close()
             return@callbackFlow
@@ -159,7 +167,15 @@ object BrandManagementRepository {
 
         fun startBrandsListener(session: BrandManagementSession) {
             brandListener?.remove()
+            Log.d(
+                ADMIN_ROLE,
+                "session_resolved userId=${session.userId} role=${session.role.storageValue} canAccess=${session.canAccessPanel}"
+            )
             if (!session.canAccessPanel) {
+                Log.w(
+                    ADMIN_ROLE,
+                    "admin_access_denied userId=${session.userId} role=${session.role.storageValue}"
+                )
                 trySend(BrandManagementRealtimeState(session = session, brands = emptyList()))
                 return
             }
@@ -167,7 +183,16 @@ object BrandManagementRepository {
             brandListener = brandsCollection
                 .limit(500)
                 .addSnapshotListener { snapshot, error ->
-                    if (error != null) return@addSnapshotListener
+                    if (error != null) {
+                        Log.e(
+                            ADMIN_ERROR,
+                            "brand_listener_error userId=${session.userId} role=${session.role.storageValue}",
+                            error
+                        )
+                        trySend(BrandManagementRealtimeState(session = session, brands = emptyList()))
+                        close(error)
+                        return@addSnapshotListener
+                    }
                     val docs = snapshot?.documents.orEmpty()
                     val allBrands = docs
                         .mapNotNull { it.toFirestoreBrand() }
@@ -200,16 +225,30 @@ object BrandManagementRepository {
                             brands = manageableBrands
                         )
                     )
+                    Log.d(
+                        ADMIN_LOAD,
+                        "brands_snapshot_loaded userId=${session.userId} role=${session.role.storageValue} count=${manageableBrands.size}"
+                    )
                 }
         }
 
         val userListener = usersCollection.document(authUser.uid)
             .addSnapshotListener { snapshot, error ->
-                if (error != null) return@addSnapshotListener
+                if (error != null) {
+                    Log.e(
+                        ADMIN_ERROR,
+                        "user_listener_error userId=${authUser.uid}",
+                        error
+                    )
+                    trySend(BrandManagementRealtimeState(session = null, brands = emptyList()))
+                    close(error)
+                    return@addSnapshotListener
+                }
                 val firestoreUser = snapshot?.toFirestoreUser()
                 if (firestoreUser == null) {
                     brandListener?.remove()
                     brandListener = null
+                    Log.w(ADMIN_ROLE, "user_document_missing_or_unreadable userId=${authUser.uid}")
                     trySend(BrandManagementRealtimeState(session = null, brands = emptyList()))
                     return@addSnapshotListener
                 }
@@ -303,9 +342,20 @@ object BrandManagementRepository {
         actorUserId: String,
         draft: BrandCreateDraft
     ): Result<String> = runCatching {
+        Log.d(
+            BRAND_CREATE_DEBUG,
+            "createBrand start actor=${actorUserId.trim()} nameLen=${draft.name.trim().length} sourceUrl=${draft.sourceUrl?.trim().orEmpty()}"
+        )
         val actor = FirestoreUsersRepository.getById(actorUserId.trim()).getOrNull()
-            ?: error("unauthorized")
+            ?: run {
+                Log.e(BRAND_CREATE_ERROR, "createBrand unauthorized actor_missing userId=${actorUserId.trim()}")
+                error("unauthorized")
+            }
         if (AppUserRole.fromStorage(actor.role) != AppUserRole.SUPER_ADMIN) {
+            Log.e(
+                BRAND_CREATE_ERROR,
+                "createBrand unauthorized actor_role=${actor.role.trim()} userId=${actor.id}"
+            )
             error("unauthorized")
         }
         val normalizedName = draft.name.trim()
@@ -319,6 +369,7 @@ object BrandManagementRepository {
             sourceUrl = draft.sourceUrl
         )
         if (duplicate != null) {
+            Log.d(BRAND_CREATE_DEBUG, "createBrand duplicate brandId=${duplicate.id} name=${duplicate.name}")
             throw IllegalStateException("duplicate:${duplicate.id}")
         }
 
@@ -349,8 +400,24 @@ object BrandManagementRepository {
             createdAt = now,
             updatedAt = now
         )
-        FirestoreBrandsRepository.create(payload).getOrThrow()
+        val createResult = FirestoreBrandsRepository.create(payload)
+        if (createResult.isFailure) {
+            val error = createResult.exceptionOrNull()
+            Log.e(
+                BRAND_CREATE_ERROR,
+                "createBrand store_error userId=${actor.id} brandId=$brandId slug=${payload.slug} message=${error?.message}",
+                error
+            )
+            throw (error ?: IllegalStateException("store_error"))
+        }
+        Log.d(BRAND_CREATE_DEBUG, "createBrand success brandId=$brandId actor=${actor.id}")
         brandId
+    }.onFailure { error ->
+        Log.e(
+            BRAND_IMPORT_DEBUG,
+            "createBrand failed actor=${actorUserId.trim()} message=${error.message}",
+            error
+        )
     }
 
     suspend fun updateSuggestionStatus(
@@ -912,10 +979,16 @@ object BrandManagementRepository {
     }
 
     private fun FirestoreUser.toSession(): BrandManagementSession {
+        val normalizedManagedIds = managedBrandIds.map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        val resolvedRole = AppUserRole.fromStorage(role)
+        Log.d(
+            ADMIN_ROLE,
+            "resolve_role userId=$id rawRole=${role.trim()} resolvedRole=${resolvedRole.storageValue} managedBrandCount=${normalizedManagedIds.size}"
+        )
         return BrandManagementSession(
             userId = id,
-            role = AppUserRole.fromStorage(role),
-            managedBrandIds = managedBrandIds.map { it.trim() }.filter { it.isNotBlank() }.toSet()
+            role = resolvedRole,
+            managedBrandIds = normalizedManagedIds
         )
     }
 

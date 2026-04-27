@@ -1,8 +1,13 @@
 package com.icoffee.app.ui.screens.profile
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.content.Context
 import android.content.ContextWrapper
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,12 +44,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,10 +64,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.icoffee.app.R
 import com.icoffee.app.data.admin.BrandManagementRepository
+import com.icoffee.app.data.notifications.NotificationPreferences
+import com.icoffee.app.data.notifications.NotificationSettingsRepository
 import com.icoffee.app.ui.components.EmptyProfileState
 import com.icoffee.app.ui.components.FavoriteChipRow
 import com.icoffee.app.ui.components.ProfileHorizontalItemCard
@@ -74,6 +84,7 @@ import com.icoffee.app.ui.theme.CoffeeSpacing
 import com.icoffee.app.viewmodel.AuthViewModel
 import com.icoffee.app.viewmodel.ProfileEventItem
 import com.icoffee.app.viewmodel.ProfileViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,10 +95,20 @@ fun ProfileScreen(
     profileViewModel: ProfileViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val languageOptions = remember { SupportedLanguage.pickerLanguages }
     var showLanguagePicker by rememberSaveable { mutableStateOf(false) }
+    var showNotificationSettings by rememberSaveable { mutableStateOf(false) }
     var activeLanguage by remember { mutableStateOf(AppLocaleManager.currentLanguage(context)) }
     var canAccessBrandManagement by remember { mutableStateOf(false) }
+    var notificationPreferences by remember { mutableStateOf(NotificationPreferences.default()) }
+    var notificationPrefsLoaded by remember { mutableStateOf(!authViewModel.isSignedIn) }
+    var hasNotificationPermission by remember { mutableStateOf(context.hasNotificationPermission()) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasNotificationPermission = granted
+    }
     val state = profileViewModel.uiState
     val user = state.user
     val displayName = user?.displayName?.takeIf { it.isNotBlank() }
@@ -130,6 +151,26 @@ fun ProfileScreen(
     LaunchedEffect(showLanguagePicker) {
         if (showLanguagePicker) {
             activeLanguage = AppLocaleManager.currentLanguage(context)
+        }
+    }
+
+    LaunchedEffect(showNotificationSettings) {
+        if (showNotificationSettings) {
+            hasNotificationPermission = context.hasNotificationPermission()
+        }
+    }
+
+    LaunchedEffect(authViewModel.isSignedIn, user?.uid) {
+        val uid = user?.uid.orEmpty()
+        if (!authViewModel.isSignedIn || uid.isBlank()) {
+            notificationPreferences = NotificationPreferences.default()
+            notificationPrefsLoaded = true
+            return@LaunchedEffect
+        }
+        notificationPrefsLoaded = false
+        NotificationSettingsRepository.observePreferences(uid).collect { prefs ->
+            notificationPreferences = prefs
+            notificationPrefsLoaded = true
         }
     }
 
@@ -275,6 +316,26 @@ fun ProfileScreen(
                             title = stringResource(R.string.settings_language_title),
                             value = stringResource(activeLanguage.displayNameResId),
                             onClick = { showLanguagePicker = true }
+                        )
+
+                        ProfileSettingsRow(
+                            title = stringResource(R.string.settings_notifications_title),
+                            value = if (!authViewModel.isSignedIn) {
+                                stringResource(R.string.settings_notifications_sign_in_required)
+                            } else if (!notificationPrefsLoaded) {
+                                stringResource(R.string.settings_notifications_loading)
+                            } else if (notificationPreferences.notificationsEnabled) {
+                                stringResource(R.string.settings_notifications_status_on)
+                            } else {
+                                stringResource(R.string.settings_notifications_status_off)
+                            },
+                            onClick = {
+                                if (authViewModel.isSignedIn) {
+                                    showNotificationSettings = true
+                                } else {
+                                    onRequestSignIn()
+                                }
+                            }
                         )
 
                         if (canAccessBrandManagement) {
@@ -473,6 +534,165 @@ fun ProfileScreen(
                 }
             }
         }
+
+        if (showNotificationSettings) {
+            ModalBottomSheet(
+                onDismissRequest = { showNotificationSettings = false },
+                containerColor = Color(0xFF2D1C14),
+                contentColor = Color(0xFFF6E5D1)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = CoffeeSpacing.lg, vertical = CoffeeSpacing.md),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_notifications_sheet_title),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = Color(0xFFF8E6D1)
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_notifications_sheet_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xC7D5B99A)
+                    )
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0x80332118), RoundedCornerShape(CoffeeRadius.md))
+                                .border(1.dp, Color(0x2CF2CEAA), RoundedCornerShape(CoffeeRadius.md))
+                                .padding(horizontal = CoffeeSpacing.md, vertical = CoffeeSpacing.sm),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_notifications_permission_row),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xE6DCC1A3),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Button(
+                                onClick = {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                },
+                                shape = RoundedCornerShape(CoffeeRadius.pill),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF6A422D),
+                                    contentColor = Color(0xFFF5E6D3)
+                                )
+                            ) {
+                                Text(stringResource(R.string.settings_notifications_permission_action))
+                            }
+                        }
+                    }
+
+                    fun persistPreferences(updated: NotificationPreferences) {
+                        val uid = user?.uid.orEmpty()
+                        if (uid.isBlank()) return
+                        notificationPreferences = updated
+                        coroutineScope.launch {
+                            NotificationSettingsRepository.updatePreferences(uid, updated)
+                        }
+                    }
+
+                    NotificationToggleRow(
+                        title = stringResource(R.string.settings_notifications_master),
+                        checked = notificationPreferences.notificationsEnabled,
+                        onCheckedChange = { checked ->
+                            persistPreferences(
+                                notificationPreferences.copy(
+                                    notificationsEnabled = checked,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    )
+                    NotificationToggleRow(
+                        title = stringResource(R.string.settings_notifications_meet_participants),
+                        checked = notificationPreferences.meetParticipants,
+                        enabled = notificationPreferences.notificationsEnabled,
+                        onCheckedChange = { checked ->
+                            persistPreferences(
+                                notificationPreferences.copy(
+                                    meetParticipants = checked,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    )
+                    NotificationToggleRow(
+                        title = stringResource(R.string.settings_notifications_meet_reminders),
+                        checked = notificationPreferences.meetReminders,
+                        enabled = notificationPreferences.notificationsEnabled,
+                        onCheckedChange = { checked ->
+                            persistPreferences(
+                                notificationPreferences.copy(
+                                    meetReminders = checked,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    )
+                    NotificationToggleRow(
+                        title = stringResource(R.string.settings_notifications_meet_updates),
+                        checked = notificationPreferences.meetUpdates,
+                        enabled = notificationPreferences.notificationsEnabled,
+                        onCheckedChange = { checked ->
+                            persistPreferences(
+                                notificationPreferences.copy(
+                                    meetUpdates = checked,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    )
+                    NotificationToggleRow(
+                        title = stringResource(R.string.settings_notifications_nearby_meet),
+                        checked = notificationPreferences.nearbyMeet,
+                        enabled = notificationPreferences.notificationsEnabled,
+                        onCheckedChange = { checked ->
+                            persistPreferences(
+                                notificationPreferences.copy(
+                                    nearbyMeet = checked,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    )
+                    NotificationToggleRow(
+                        title = stringResource(R.string.settings_notifications_recommendations),
+                        checked = notificationPreferences.recommendations,
+                        enabled = notificationPreferences.notificationsEnabled,
+                        onCheckedChange = { checked ->
+                            persistPreferences(
+                                notificationPreferences.copy(
+                                    recommendations = checked,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    )
+                    NotificationToggleRow(
+                        title = stringResource(R.string.settings_notifications_campaigns),
+                        checked = notificationPreferences.campaigns,
+                        enabled = notificationPreferences.notificationsEnabled,
+                        onCheckedChange = { checked ->
+                            persistPreferences(
+                                notificationPreferences.copy(
+                                    campaigns = checked,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+        }
     }
 }
 
@@ -640,8 +860,56 @@ private fun LanguageOptionRow(
     }
 }
 
+@Composable
+private fun NotificationToggleRow(
+    title: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Color(0xCC372218),
+                RoundedCornerShape(CoffeeRadius.md)
+            )
+            .border(
+                1.dp,
+                Color(0x2CF2CEAA),
+                RoundedCornerShape(CoffeeRadius.md)
+            )
+            .padding(horizontal = CoffeeSpacing.md, vertical = CoffeeSpacing.sm),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (enabled) Color(0xF2F7E8D4) else Color(0x96D5B99A),
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            enabled = enabled,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+private fun Context.hasNotificationPermission(): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
+    }
 }

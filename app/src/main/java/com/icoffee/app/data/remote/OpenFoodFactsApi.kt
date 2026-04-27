@@ -17,7 +17,7 @@ interface OpenFoodFactsApi {
 
 object OpenFoodFactsApiFactory {
     private const val BASE_URL = "https://world.openfoodfacts.org/"
-    private const val USER_AGENT = "Coffinity/1.0 (alkan@coffinity.app)"
+    private const val USER_AGENT = "Coffinity/1.0 (alkan@coffinity.net)"
 
     private val userAgentInterceptor = Interceptor { chain ->
         val request = chain.request()

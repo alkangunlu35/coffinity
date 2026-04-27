@@ -50,6 +50,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.icoffee.app.R
+import com.icoffee.app.analytics.AnalyticsEvents
+import com.icoffee.app.analytics.AnalyticsParams
+import com.icoffee.app.analytics.AnalyticsProvider
 import com.icoffee.app.data.firebase.model.FirestoreBrand
 import com.icoffee.app.data.firebase.model.FirestoreBrandSuggestion
 import com.icoffee.app.data.model.AppUserRole
@@ -83,6 +86,7 @@ fun BrandAdminPanelScreen(
     suggestionViewModel: SuggestionAdminViewModel = viewModel()
 ) {
     val isLoading by viewModel.isBrandStreamLoading.collectAsState()
+    val adminLoadError by viewModel.adminLoadError.collectAsState()
     val session by viewModel.sessionState.collectAsState()
     val brands by viewModel.manageableBrandsState.collectAsState()
     var feedbackRes by remember { mutableStateOf<Int?>(null) }
@@ -135,6 +139,27 @@ fun BrandAdminPanelScreen(
     }
 
     val role = session?.role
+    var adminOpenTracked by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(isLoading, adminLoadError, session?.userId, session?.role) {
+        if (!isLoading && adminLoadError == null && session?.canAccessPanel == true && !adminOpenTracked) {
+            AnalyticsProvider.tracker.logEvent(
+                AnalyticsEvents.ADMIN_PANEL_OPEN,
+                mapOf(AnalyticsParams.ROLE to (session?.role?.storageValue ?: "unknown"))
+            )
+            adminOpenTracked = true
+        }
+    }
+
+    LaunchedEffect(adminLoadError) {
+        val error = adminLoadError?.trim().orEmpty()
+        if (error.isNotBlank()) {
+            AnalyticsProvider.tracker.logEvent(
+                AnalyticsEvents.ADMIN_PANEL_LOAD_FAILED,
+                mapOf(AnalyticsParams.REASON to AnalyticsProvider.normalizeFailureReason(error))
+            )
+        }
+    }
     val availableSections = remember(role) {
         when (role) {
             AppUserRole.SUPER_ADMIN -> listOf(
@@ -508,6 +533,21 @@ fun BrandAdminPanelScreen(
                         ) {
                             CircularProgressIndicator(color = Color(0xFFD0A77A))
                         }
+                    }
+                }
+
+                adminLoadError != null -> {
+                    item {
+                        ManagementInfoCard(
+                            title = "Yönetici paneli yüklenemedi",
+                            subtitle = "Lütfen tekrar dene."
+                        )
+                    }
+                    item {
+                        PrimaryButton(
+                            text = stringResource(R.string.scan_action_retry_lookup),
+                            onClick = { viewModel.retryAdminPanelLoad() }
+                        )
                     }
                 }
 

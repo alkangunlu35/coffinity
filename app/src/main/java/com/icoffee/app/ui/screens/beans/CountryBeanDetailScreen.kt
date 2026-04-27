@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.icoffee.app.R
 import com.icoffee.app.data.affiliate.AffiliateRepository
+import com.icoffee.app.localization.AppLocaleManager
 import com.icoffee.app.ui.components.AffiliateOfferCard
 import com.icoffee.app.ui.components.BeanFlavorTag
 import com.icoffee.app.ui.components.BeanInfoGrid
@@ -50,6 +52,9 @@ import com.icoffee.app.ui.theme.MutedText
 import com.icoffee.app.ui.theme.SurfaceDark
 import com.icoffee.app.ui.theme.SurfaceDarkAlt
 import com.icoffee.app.ui.theme.SurfaceStroke
+import com.icoffee.app.util.BeanOriginTextLocalizer
+import com.icoffee.app.util.CountryDisplayNames
+import com.icoffee.app.util.ENABLE_AFFILIATE_SECTION
 import com.icoffee.app.viewmodel.BeansViewModel
 
 @Composable
@@ -58,6 +63,8 @@ fun CountryBeanDetailScreen(
     onBack: () -> Unit,
     viewModel: BeansViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val languageCode = AppLocaleManager.currentLanguage(context).code
     val country = viewModel.getCountry(countryId)
 
     if (country == null) {
@@ -161,7 +168,7 @@ fun CountryBeanDetailScreen(
                                 style = MaterialTheme.typography.headlineMedium
                             )
                             Text(
-                                text = country.country,
+                                text = CountryDisplayNames.localizedName(country.country, languageCode),
                                 style = MaterialTheme.typography.headlineLarge,
                                 color = CreamText,
                                 maxLines = 1,
@@ -238,7 +245,12 @@ fun CountryBeanDetailScreen(
                                 color = CreamText
                             )
                             Text(
-                                text = variety.description,
+                                text = BeanOriginTextLocalizer.localizedDescription(
+                                    rawDescription = variety.description,
+                                    countryName = country.country,
+                                    flavorNotes = variety.flavorNotes,
+                                    appLanguageCode = languageCode
+                                ),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = CreamText.copy(alpha = 0.9f)
                             )
@@ -252,7 +264,12 @@ fun CountryBeanDetailScreen(
                             )
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(variety.flavorNotes) { note ->
-                                    BeanFlavorTag(text = note)
+                                    BeanFlavorTag(
+                                        text = BeanOriginTextLocalizer.localizedFlavorNote(
+                                            rawNote = note,
+                                            appLanguageCode = languageCode
+                                        )
+                                    )
                                 }
                             }
                         }
@@ -321,20 +338,22 @@ fun CountryBeanDetailScreen(
                 }
             }
 
-            AffiliateRepository.forCountry(country.id)?.let { offer ->
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = stringResource(R.string.affiliate_section_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = CreamText.copy(alpha = 0.80f)
-                        )
-                        AffiliateOfferCard(offer = offer, darkTheme = true)
-                        Text(
-                            text = stringResource(R.string.affiliate_disclosure),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MutedText.copy(alpha = 0.60f)
-                        )
+            if (ENABLE_AFFILIATE_SECTION) {
+                AffiliateRepository.forCountry(country.id)?.let { offer ->
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = stringResource(R.string.affiliate_section_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = CreamText.copy(alpha = 0.80f)
+                            )
+                            AffiliateOfferCard(offer = offer, darkTheme = true)
+                            Text(
+                                text = stringResource(R.string.affiliate_disclosure),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MutedText.copy(alpha = 0.60f)
+                            )
+                        }
                     }
                 }
             }

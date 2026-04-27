@@ -3,6 +3,7 @@ package com.icoffee.app.ui.screens.detail
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +70,7 @@ import kotlinx.coroutines.launch
 fun BrewingDetailScreen(
     methodId: String,
     onBack: () -> Unit,
+    onRequestSignIn: () -> Unit,
     viewModel: BrandViewModel = viewModel()
 ) {
     val method = localizedBrewingMethod(PhaseOneRepository.methodById(methodId))
@@ -221,6 +223,7 @@ fun BrewingDetailScreen(
                         commentInput = it
                         reviewFeedbackRes = null
                     },
+                    onRequestSignIn = onRequestSignIn,
                     onSubmit = {
                         scope.launch {
                             val result = viewModel.submitReview(
@@ -434,6 +437,7 @@ private fun BrewReviewComposerCard(
     feedbackResId: Int?,
     onRatingChange: (Int) -> Unit,
     onCommentChange: (String) -> Unit,
+    onRequestSignIn: () -> Unit,
     onSubmit: () -> Unit
 ) {
     Box(
@@ -442,6 +446,7 @@ private fun BrewReviewComposerCard(
             .clip(RoundedCornerShape(18.dp))
             .background(Color(0xA03A251A))
             .border(1.dp, Color(0x44E5C49D), RoundedCornerShape(18.dp))
+            .clickable(enabled = !isSignedIn, onClick = onRequestSignIn)
             .padding(15.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {

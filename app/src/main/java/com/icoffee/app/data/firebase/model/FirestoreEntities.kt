@@ -553,6 +553,123 @@ fun DocumentSnapshot.toFirestoreEvent(): FirestoreEvent? {
     )
 }
 
+data class FirestoreCoffeeBuddyInvite(
+    val id: String,
+    val senderUserId: String,
+    val recipientUserId: String,
+    val placeName: String = "",
+    val inviteDate: Long = 0L,
+    val startTime: Long = 0L,
+    val endTime: Long = 0L,
+    val message: String = "",
+    val status: String = "pending",
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L
+) {
+    fun toMap(): Map<String, Any?> = mapOf(
+        "id" to id,
+        "senderUserId" to senderUserId,
+        "recipientUserId" to recipientUserId,
+        "placeName" to placeName,
+        "inviteDate" to inviteDate,
+        "startTime" to startTime,
+        "endTime" to endTime,
+        "message" to message,
+        "status" to status,
+        "createdAt" to createdAt,
+        "updatedAt" to updatedAt
+    )
+}
+
+fun DocumentSnapshot.toFirestoreCoffeeBuddyInvite(): FirestoreCoffeeBuddyInvite? {
+    val id = requiredId() ?: return null
+    val senderUserId = string("senderUserId")
+    val recipientUserId = string("recipientUserId")
+    if (senderUserId.isBlank() || recipientUserId.isBlank()) return null
+    return FirestoreCoffeeBuddyInvite(
+        id = id,
+        senderUserId = senderUserId,
+        recipientUserId = recipientUserId,
+        placeName = string("placeName"),
+        inviteDate = long("inviteDate"),
+        startTime = long("startTime"),
+        endTime = long("endTime"),
+        message = string("message"),
+        status = string("status").ifBlank { "pending" },
+        createdAt = long("createdAt"),
+        updatedAt = long("updatedAt")
+    )
+}
+
+data class FirestoreCoffeeChat(
+    val id: String,
+    val inviteId: String,
+    val participantIds: List<String> = emptyList(),
+    val sessionStartAt: Long = 0L,
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L,
+    val lastMessage: String = "",
+    val lastMessageAt: Long = 0L
+) {
+    fun toMap(): Map<String, Any?> = mapOf(
+        "id" to id,
+        "inviteId" to inviteId,
+        "participantIds" to participantIds,
+        "sessionStartAt" to sessionStartAt,
+        "createdAt" to createdAt,
+        "updatedAt" to updatedAt,
+        "lastMessage" to lastMessage,
+        "lastMessageAt" to lastMessageAt
+    )
+}
+
+fun DocumentSnapshot.toFirestoreCoffeeChat(): FirestoreCoffeeChat? {
+    val id = requiredId() ?: return null
+    val inviteId = string("inviteId")
+    if (inviteId.isBlank()) return null
+    val participants = stringList("participantIds")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+    return FirestoreCoffeeChat(
+        id = id,
+        inviteId = inviteId,
+        participantIds = participants,
+        sessionStartAt = long("sessionStartAt"),
+        createdAt = long("createdAt"),
+        updatedAt = long("updatedAt"),
+        lastMessage = string("lastMessage"),
+        lastMessageAt = long("lastMessageAt")
+    )
+}
+
+data class FirestoreCoffeeChatMessage(
+    val id: String,
+    val senderUserId: String,
+    val text: String,
+    val createdAt: Long = 0L
+) {
+    fun toMap(): Map<String, Any?> = mapOf(
+        "id" to id,
+        "senderUserId" to senderUserId,
+        "text" to text,
+        "createdAt" to createdAt
+    )
+}
+
+fun DocumentSnapshot.toFirestoreCoffeeChatMessage(): FirestoreCoffeeChatMessage? {
+    val id = requiredId() ?: return null
+    val senderUserId = string("senderUserId")
+    val text = string("text")
+    if (senderUserId.isBlank() || text.isBlank()) return null
+    return FirestoreCoffeeChatMessage(
+        id = id,
+        senderUserId = senderUserId,
+        text = text,
+        createdAt = long("createdAt")
+    )
+}
+
 data class FirestoreClaimRequest(
     val id: String,
     val brandId: String,

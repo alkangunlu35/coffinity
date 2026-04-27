@@ -1,7 +1,12 @@
+// FILE: app/src/main/java/com/icoffee/app/data/MeetRepository.kt
+// FULL REPLACEMENT
+
 package com.icoffee.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.ApplicationInfo
+import android.util.Log
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -16,6 +21,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.tasks.await
+
+data class MeetRawDebugEvent(
+    val id: String,
+    val title: String,
+    val status: String,
+    val isDeleted: Boolean,
+    val hostId: String,
+    val scheduledAt: Long
+)
 
 object MeetRepository {
 
@@ -23,22 +38,26 @@ object MeetRepository {
     private lateinit var prefs: SharedPreferences
 
     private val _events = MutableStateFlow<List<CoffeeMeet>>(emptyList())
-    val eventsFlow: StateFlow<List<CoffeeMeet>> = _events.asStateFlow()
 
-    fun initialize(context: Context) {
-        if (::prefs.isInitialized) return
-        prefs = context.applicationContext.getSharedPreferences("meet_prefs", Context.MODE_PRIVATE)
+    private data class SnapshotMeet(
+        val meet: CoffeeMeet,
+        val isDeleted: Boolean,
+        val status: String
+    )
 
-        db.collection("events")
-            .whereEqualTo("isDeleted", false)
-            .orderBy("scheduledAt", Query.Direction.ASCENDING)
+    val eventsFlow: Flow<List<CoffeeMeet>> = callbackFlow {
+        val listener = db.collection("events")
             .addSnapshotListener { snapshot, error ->
-                if (error != null) return@addSnapshotListener
-                if (snapshot != null) {
-                    val eventList = snapshot.documents.mapNotNull { doc ->
-                        try {
-                            val participants = doc.get("participants") as? List<String> ?: emptyList()
-                            CoffeeMeet(
+                if (error != null) {
+                    Log.e("MEET_DEBUG", "Snapshot error", error)
+                    return@addSnapshotListener
+                }
+
+                val events = snapshot?.documents?.mapNotNull { doc ->
+                    try {
+                        val participants = doc.get("participants") as? List<String> ?: emptyList()
+                        SnapshotMeet(
+                            meet = CoffeeMeet(
                                 id = doc.id,
                                 title = doc.getString("title") ?: "",
                                 description = doc.getString("description") ?: "",
@@ -53,20 +72,65 @@ object MeetRepository {
                                 hostId = doc.getString("hostId") ?: "",
                                 hostUserType = doc.getString("hostUserType")?.let { UserType.valueOf(it) },
                                 brewingType = doc.getString("brewingType"),
-                                isCreatedByUser = false // This will be set by the ViewModel if needed
+                                isCreatedByUser = false
+                            ),
+                            isDeleted = doc.getBoolean("isDeleted") ?: false,
+                            status = doc.getString("status")?.trim()?.lowercase() ?: "active"
+                        )
+                    } catch (_: Exception) {
+                        null
+                    }
+                } ?: emptyList()
+
+                Log.d("MEET_DEBUG", "RAW SNAPSHOT size=${events.size}")
+                val now = System.currentTimeMillis()
+
+                val visibleEvents = events
+                    .filter {
+                        it.isDeleted != true &&
+                            it.status == "active" &&
+                            isEventCurrentOrFuture(it.meet.scheduledAt, now)
+                    }
+                    .map { it.meet }
+
+                _events.value = visibleEvents
+                trySend(visibleEvents)
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    private val _rawDebugEvents = MutableStateFlow<List<MeetRawDebugEvent>>(emptyList())
+    val rawDebugEventsFlow: StateFlow<List<MeetRawDebugEvent>> = _rawDebugEvents.asStateFlow()
+
+    fun initialize(context: Context) {
+        if (::prefs.isInitialized) return
+        prefs = context.applicationContext.getSharedPreferences("meet_prefs", Context.MODE_PRIVATE)
+        val isDebugBuild = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
+        if (isDebugBuild) {
+            db.collection("events")
+                .orderBy("scheduledAt", Query.Direction.ASCENDING)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) return@addSnapshotListener
+                    if (snapshot != null) {
+                        _rawDebugEvents.value = snapshot.documents.map { doc ->
+                            MeetRawDebugEvent(
+                                id = doc.id,
+                                title = doc.getString("title").orEmpty(),
+                                status = doc.getString("status")?.trim()?.lowercase() ?: "active",
+                                isDeleted = doc.getBoolean("isDeleted") ?: false,
+                                hostId = doc.getString("hostId").orEmpty(),
+                                scheduledAt = doc.getLong("scheduledAt") ?: 0L
                             )
-                        } catch (e: Exception) {
-                            null
                         }
                     }
-                    _events.value = eventList
                 }
-            }
+        }
     }
 
     fun nearbyActivityCount(): Int {
         val allEvents = _events.value
-        // Using default lat/lon from MeetDiscoveryEngine if real location not available
         return MeetDiscoveryEngine.buildSections(
             events = allEvents,
             selectedMood = com.icoffee.app.data.model.MeetMood.CHILL
@@ -81,7 +145,17 @@ object MeetRepository {
         return prefs.getString("user_city_hint", null)
     }
 
-    fun createMeet(
+    private fun isEventCurrentOrFuture(
+        scheduledAt: Long,
+        nowMillis: Long
+    ): Boolean {
+        if (scheduledAt <= 0L) return true
+
+        val eventEnd = scheduledAt + 2 * 60 * 60 * 1000L
+        return eventEnd >= nowMillis
+    }
+
+    suspend fun createMeet(
         title: String,
         description: String,
         locationName: String,
@@ -96,6 +170,7 @@ object MeetRepository {
         brewingType: String?,
         businessOffer: BusinessOffer?
     ): String {
+        Log.d("MEET_DEBUG", "createMeet called")
         val eventData = mutableMapOf<String, Any?>(
             "title" to title,
             "description" to description,
@@ -131,9 +206,15 @@ object MeetRepository {
             )
         }
 
-        val docRef = runBlocking {
-            com.google.android.gms.tasks.Tasks.await(db.collection("events").add(eventData))
+        val docRef = db.collection("events").document()
+        docRef.set(eventData).await()
+
+        val verify = docRef.get().await()
+        if (!verify.exists()) {
+            throw Exception("CREATE_FAILED_NOT_PERSISTED")
         }
+
+        Log.d("MEET_DEBUG", "Created eventId=${docRef.id}")
         return docRef.id
     }
 
@@ -185,22 +266,77 @@ object MeetRepository {
             .update(updates)
     }
 
-    fun cancelMeet(
-        eventId: String
-    ) {
-        db.collection("events").document(eventId)
-            .update("isDeleted", true, "status", "cancelled")
+    suspend fun cancelMeet(eventId: String): Result<Unit> = runCatching {
+        Log.d("MEET_DEBUG", "cancelMeet called eventId=$eventId")
+        val ref = db.collection("events").document(eventId)
+        ref.update(
+            mapOf(
+                "isDeleted" to true,
+                "status" to "cancelled"
+            )
+        ).await()
+
+        val snapshot = ref.get().await()
+        val deleted = snapshot.getBoolean("isDeleted")
+        val status = snapshot.getString("status")
+
+        if (deleted != true || status != "cancelled") {
+            throw Exception("CANCEL_NOT_PERSISTED")
+        }
+
+        Log.d("MEET_DEBUG", "Cancel persisted for event=$eventId")
     }
 
-    fun replaceParticipants(
+    suspend fun replaceParticipants(
         eventId: String,
         newParticipants: List<String>
     ) {
-        db.collection("events").document(eventId)
-            .update(
-                "participants", newParticipants,
-                "participantCount", newParticipants.size
+        val normalizedParticipants = newParticipants
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+
+        val eventRef = db.collection("events").document(eventId)
+
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(eventRef)
+            if (!snapshot.exists()) {
+                throw Exception("EVENT_NOT_FOUND")
+            }
+
+            val isDeleted = snapshot.getBoolean("isDeleted") ?: false
+            val status = snapshot.getString("status")?.trim()?.lowercase() ?: "active"
+
+            if (isDeleted) throw Exception("EVENT_DELETED")
+            if (status != "active") throw Exception("EVENT_NOT_ACTIVE")
+
+            transaction.update(
+                eventRef,
+                mapOf(
+                    "participants" to normalizedParticipants,
+                    "participantCount" to normalizedParticipants.size
+                )
             )
+            null
+        }.await()
+
+        val verify = eventRef.get().await()
+        val persistedParticipants = (verify.get("participants") as? List<*>)
+            ?.mapNotNull { it as? String }
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.distinct()
+            ?: emptyList()
+        val persistedCount = (verify.getLong("participantCount") ?: 0L).toInt()
+
+        if (persistedParticipants != normalizedParticipants || persistedCount != normalizedParticipants.size) {
+            throw Exception("PARTICIPANTS_NOT_PERSISTED")
+        }
+
+        Log.d(
+            "MEET_DEBUG",
+            "replaceParticipants success eventId=$eventId participantCount=${normalizedParticipants.size}"
+        )
     }
 
     fun joinEvent(
@@ -242,7 +378,6 @@ object MeetRepository {
                 "participantCount", newParticipants.size
             )
 
-            // Also keep sub-collection for legacy/query purposes if needed
             val participantData = hashMapOf(
                 "userId" to userId,
                 "joinedAt" to FieldValue.serverTimestamp(),
@@ -258,7 +393,8 @@ object MeetRepository {
                         runBlocking {
                             EventMembershipRepository.recordEventJoined(userId, eventId)
                         }
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                    }
                 }.start()
                 onSuccess()
             }

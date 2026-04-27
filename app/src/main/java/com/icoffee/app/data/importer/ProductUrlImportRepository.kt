@@ -1,15 +1,25 @@
+// FILE: app/src/main/java/com/icoffee/app/data/importer/ProductUrlImportRepository.kt
+// FULL REPLACEMENT
+
 package com.icoffee.app.data.importer
 
 import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
 import com.icoffee.app.data.model.importer.ProductImportFailureReason
 import com.icoffee.app.data.model.importer.ProductImportPreview
 import com.icoffee.app.data.model.importer.ProductImportPreviewResult
 import com.icoffee.app.data.remote.importer.ProductImportApi
 import com.icoffee.app.data.remote.importer.ProductImportApiFactory
 import com.icoffee.app.data.remote.importer.ProductImportRequestDto
+import kotlinx.coroutines.tasks.await
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import retrofit2.HttpException
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
 import java.net.URI
+import java.util.concurrent.TimeUnit
 
 class ProductUrlImportRepository(
     private val api: ProductImportApi = ProductImportApiFactory.api
@@ -22,8 +32,13 @@ class ProductUrlImportRepository(
         val endpoint = resolveImportEndpoint()
             ?: return ProductImportPreviewResult.Failure(ProductImportFailureReason.UNKNOWN)
 
+        val token = getIdToken()
+            ?: return ProductImportPreviewResult.Failure(ProductImportFailureReason.UNKNOWN)
+
+        val authedApi = createAuthedApi(token)
+
         return try {
-            val response = api.importProductFromUrl(
+            val response = authedApi.importProductFromUrl(
                 endpoint = endpoint,
                 request = ProductImportRequestDto(url = normalizedUrl)
             )
@@ -61,10 +76,10 @@ class ProductUrlImportRepository(
         } catch (http: HttpException) {
             when (http.code()) {
                 400 -> ProductImportPreviewResult.Failure(ProductImportFailureReason.INVALID_URL)
+                401, 403 -> ProductImportPreviewResult.Failure(ProductImportFailureReason.UNKNOWN)
                 404, 422 -> ProductImportPreviewResult.Failure(ProductImportFailureReason.NO_DATA)
                 408, 429, 500, 502, 503, 504 ->
                     ProductImportPreviewResult.Failure(ProductImportFailureReason.UNREACHABLE)
-
                 else -> ProductImportPreviewResult.Failure(ProductImportFailureReason.UNKNOWN)
             }
         } catch (_: IOException) {
@@ -72,6 +87,36 @@ class ProductUrlImportRepository(
         } catch (_: Exception) {
             ProductImportPreviewResult.Failure(ProductImportFailureReason.UNKNOWN)
         }
+    }
+
+    private suspend fun getIdToken(): String? {
+        val user = FirebaseAuth.getInstance().currentUser ?: return null
+        return try {
+            user.getIdToken(true).await().token
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun createAuthedApi(token: String): ProductImportApi {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(12, TimeUnit.SECONDS)
+            .readTimeout(12, TimeUnit.SECONDS)
+            .writeTimeout(12, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request: Request = chain.request().newBuilder()
+                    .addHeader("Authorization", "Bearer $token")
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
+
+        return Retrofit.Builder()
+            .baseUrl("https://example.com/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ProductImportApi::class.java)
     }
 
     private fun resolveImportEndpoint(): String? {

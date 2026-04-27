@@ -4,5 +4,12 @@
   },
   "firestore": {
     "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": "public",
+    "cleanUrls": true,
+    "i18n": {
+      "root": "/legal"
+    }
   }
 }

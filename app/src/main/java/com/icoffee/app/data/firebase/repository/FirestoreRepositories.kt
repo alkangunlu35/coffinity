@@ -1,11 +1,16 @@
 package com.icoffee.app.data.firebase.repository
-
+import android.util.Log
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.icoffee.app.data.firebase.FirebaseServiceLocator
 import com.icoffee.app.data.firebase.firestore.FirestoreCollections
 import com.icoffee.app.data.firebase.model.FirestoreBrand
 import com.icoffee.app.data.firebase.model.FirestoreBrandSuggestion
+import com.icoffee.app.data.firebase.model.FirestoreCoffeeChat
+import com.icoffee.app.data.firebase.model.FirestoreCoffeeChatMessage
+import com.icoffee.app.data.firebase.model.FirestoreCoffeeBuddyInvite
 import com.icoffee.app.data.firebase.model.FirestoreClaimRequest
 import com.icoffee.app.data.firebase.model.FirestoreEvent
 import com.icoffee.app.data.firebase.model.FirestoreProduct
@@ -14,6 +19,9 @@ import com.icoffee.app.data.firebase.model.FirestoreSuggestionActionLog
 import com.icoffee.app.data.firebase.model.FirestoreUser
 import com.icoffee.app.data.firebase.model.toFirestoreBrand
 import com.icoffee.app.data.firebase.model.toFirestoreBrandSuggestion
+import com.icoffee.app.data.firebase.model.toFirestoreCoffeeChat
+import com.icoffee.app.data.firebase.model.toFirestoreCoffeeChatMessage
+import com.icoffee.app.data.firebase.model.toFirestoreCoffeeBuddyInvite
 import com.icoffee.app.data.firebase.model.toFirestoreClaimRequest
 import com.icoffee.app.data.firebase.model.toFirestoreEvent
 import com.icoffee.app.data.firebase.model.toFirestoreProduct
@@ -21,6 +29,9 @@ import com.icoffee.app.data.firebase.model.toFirestoreReview
 import com.icoffee.app.data.firebase.model.toFirestoreSuggestionActionLog
 import com.icoffee.app.data.firebase.model.toFirestoreUser
 import java.util.Locale
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 private const val DEFAULT_LIST_LIMIT = 100L
@@ -46,6 +57,16 @@ object FirestoreUsersRepository {
 
     suspend fun list(limit: Long = DEFAULT_LIST_LIMIT): Result<List<FirestoreUser>> = runCatching {
         collection.limit(limit).get().await().documents.mapNotNull { it.toFirestoreUser() }
+    }
+
+    suspend fun listDiscoverable(limit: Long = DEFAULT_LIST_LIMIT): Result<List<FirestoreUser>> = runCatching {
+        collection
+            .whereEqualTo("discoverable", true)
+            .limit(limit)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { it.toFirestoreUser() }
     }
 
     suspend fun listByIds(ids: List<String>): Result<List<FirestoreUser>> = runCatching {
@@ -585,6 +606,475 @@ object FirestoreEventsRepository {
         require(event.id.isNotBlank()) { "Event id is required." }
         val payload = event.copy(updatedAt = System.currentTimeMillis())
         collection.document(payload.id).set(payload.toMap(), SetOptions.merge()).await()
+    }
+}
+
+// FILE: app/src/main/java/com/icoffee/app/data/firebase/repository/FirestoreRepositories.kt
+// FULL REPLACEMENT
+
+// ⚠️ NOT:
+// Bu dosyanın geri kalan kısmı SENDE ZATEN VAR
+// Aşağıda SADECE Invite Repository güncellenmiş hal var
+// Tüm dosyanın geri kalanını aynen bırak
+
+// 🔥 SADECE BU BLOĞU DEĞİŞTİR
+
+object FirestoreCoffeeBuddyInvitesRepository {
+
+    private val collection
+        get() = FirebaseServiceLocator.firestore.collection("coffeeInvites")
+
+    suspend fun sendInvite(
+        senderUserId: String,
+        recipientUserId: String,
+        placeName: String,
+        inviteDate: Long,
+        startTime: Long,
+        endTime: Long,
+        message: String
+    ): Result<Boolean> = runCatching {
+
+        val sender = senderUserId.trim()
+        val recipient = recipientUserId.trim()
+
+        require(sender.isNotBlank())
+        require(recipient.isNotBlank())
+        require(sender != recipient)
+        require(placeName.isNotBlank())
+        require(inviteDate > 0)
+        require(startTime > 0)
+        require(endTime > startTime)
+
+        // 🔥 DUPLICATE PENDING KONTROL
+        val existingPending = collection
+            .whereEqualTo("senderUserId", sender)
+            .whereEqualTo("recipientUserId", recipient)
+            .whereEqualTo("status", "pending")
+            .limit(1)
+            .get()
+            .await()
+
+        if (!existingPending.isEmpty) {
+            return@runCatching false
+        }
+
+        val now = System.currentTimeMillis()
+
+        // 🔥 UNIQUE ID
+        val docRef = collection.document()
+        val inviteId = docRef.id
+
+        val payload = FirestoreCoffeeBuddyInvite(
+            id = inviteId,
+            senderUserId = sender,
+            recipientUserId = recipient,
+            placeName = placeName.trim(),
+            inviteDate = inviteDate,
+            startTime = startTime,
+            endTime = endTime,
+            message = message.trim(),
+            status = "pending",
+            createdAt = now,
+            updatedAt = now
+        )
+
+        docRef.set(payload.toMap()).await()
+
+        true
+    }
+
+    suspend fun updateStatus(
+        inviteId: String,
+        status: String
+    ): Result<Unit> = runCatching {
+
+        val normalizedStatus = status.trim().lowercase()
+
+        require(normalizedStatus in setOf("pending", "accepted", "declined"))
+
+        collection.document(inviteId)
+            .update(
+                mapOf(
+                    "status" to normalizedStatus,
+                    "updatedAt" to System.currentTimeMillis()
+                )
+            )
+            .await()
+
+        // 🔥 CHAT AUTO CREATE (MEVCUT MANTIK KORUNDU)
+        if (normalizedStatus == "accepted") {
+            try {
+                val snapshot = collection.document(inviteId).get().await()
+                val invite = snapshot.toFirestoreCoffeeBuddyInvite()
+
+                if (invite != null) {
+                    FirestoreCoffeeChatsRepository
+                        .ensureChatForAcceptedInvite(
+                            inviteId = inviteId,
+                            requesterUserId = invite.recipientUserId
+                        )
+                        .getOrThrow()
+                }
+            } catch (e: Exception) {
+                Log.e("INVITE_CHAT_AUTO", "Chat auto-create failed", e)
+            }
+        }
+    }
+
+    suspend fun listIncoming(
+        recipientUserId: String,
+        limit: Long = 100
+    ): Result<List<FirestoreCoffeeBuddyInvite>> = runCatching {
+
+        val normalized = recipientUserId.trim()
+        if (normalized.isBlank()) return@runCatching emptyList()
+
+        collection
+            .whereEqualTo("recipientUserId", normalized)
+            .limit(limit)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { it.toFirestoreCoffeeBuddyInvite() }
+            .sortedByDescending { it.createdAt }
+    }
+
+    fun observeIncoming(
+        recipientUserId: String,
+        limit: Long = 100
+    ): Flow<List<FirestoreCoffeeBuddyInvite>> = callbackFlow {
+
+        val normalized = recipientUserId.trim()
+        if (normalized.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        val listener = collection
+            .whereEqualTo("recipientUserId", normalized)
+            .limit(limit)
+            .addSnapshotListener { snapshot, _ ->
+
+                val invites = snapshot
+                    ?.documents
+                    ?.mapNotNull { it.toFirestoreCoffeeBuddyInvite() }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+
+                trySend(invites)
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    fun observeOutgoing(
+        senderUserId: String,
+        limit: Long = 100
+    ): Flow<List<FirestoreCoffeeBuddyInvite>> = callbackFlow {
+
+        val normalized = senderUserId.trim()
+        if (normalized.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        val listener = collection
+            .whereEqualTo("senderUserId", normalized)
+            .limit(limit)
+            .addSnapshotListener { snapshot, _ ->
+
+                val invites = snapshot
+                    ?.documents
+                    ?.mapNotNull { it.toFirestoreCoffeeBuddyInvite() }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+
+                trySend(invites)
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun resolveLinkedEventId(inviteId: String): Result<String?> = runCatching {
+        val snapshot = collection.document(inviteId).get().await()
+        if (!snapshot.exists()) return@runCatching null
+
+        snapshot.getString("eventId")
+            ?.takeIf { it.isNotBlank() }
+            ?: snapshot.getString("meetId")?.takeIf { it.isNotBlank() }
+    }
+}
+
+object FirestoreCoffeeChatsRepository {
+    private const val CHAT_ACTIVATION_MESSAGE_ID = "__system_activation__"
+    private const val CHAT_ACTIVATION_SENDER_ID = "system"
+    private const val CHAT_ACTIVATION_TEXT = "Kahve planı için buradan konuşabilirsiniz ☕"
+
+    private val chatsCollection
+        get() = FirebaseServiceLocator.firestore.collection("coffeeChats")
+    private val invitesCollection
+        get() = FirebaseServiceLocator.firestore.collection("coffeeInvites")
+
+    private fun chatDocumentId(inviteId: String): String {
+        return "coffee_chat_${inviteId.trim().replace("/", "_")}"
+    }
+
+    suspend fun ensureChatForAcceptedInvite(
+        inviteId: String,
+        requesterUserId: String
+    ): Result<String> = runCatching {
+        val normalizedInviteId = inviteId.trim()
+        val normalizedRequester = requesterUserId.trim()
+        Log.d(
+            "COFFEE_CHAT_DEBUG",
+            "ensureChatForAcceptedInvite start inviteId=$normalizedInviteId requesterUserId=$normalizedRequester"
+        )
+        require(normalizedInviteId.isNotBlank()) { "invalid_invite_id" }
+        require(normalizedRequester.isNotBlank()) { "invalid_user" }
+
+        val inviteSnapshot = invitesCollection.document(normalizedInviteId).get().await()
+        val invite = inviteSnapshot.toFirestoreCoffeeBuddyInvite()
+            ?: throw IllegalStateException("invite_not_found")
+        Log.d(
+            "COFFEE_CHAT_DEBUG",
+            "invite loaded inviteId=$normalizedInviteId senderUserId=${invite.senderUserId} recipientUserId=${invite.recipientUserId} status=${invite.status}"
+        )
+
+        if (!invite.status.equals("accepted", ignoreCase = true)) {
+            throw IllegalStateException("invite_not_accepted")
+        }
+
+        val participantIds = listOf(invite.senderUserId.trim(), invite.recipientUserId.trim())
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (participantIds.size != 2 || normalizedRequester !in participantIds) {
+            throw IllegalStateException("forbidden_chat_access")
+        }
+        val resolvedOtherUserId = participantIds.firstOrNull { it != normalizedRequester }.orEmpty()
+        Log.d(
+            "COFFEE_CHAT_DEBUG",
+            "participants resolved currentUserId=$normalizedRequester otherUserId=$resolvedOtherUserId"
+        )
+
+        val chatId = chatDocumentId(normalizedInviteId)
+        val chatRef = chatsCollection.document(chatId)
+        Log.d("COFFEE_CHAT_DEBUG", "chat open/create start chatId=$chatId")
+        val now = System.currentTimeMillis()
+        val sessionStartAt = invite.updatedAt.takeIf { it > 0L } ?: now
+        chatRef.set(
+            mapOf(
+                "id" to chatId,
+                "inviteId" to normalizedInviteId,
+                "participantIds" to participantIds,
+                "sessionStartAt" to sessionStartAt,
+                "createdAt" to now,
+                "updatedAt" to now
+            ),
+            SetOptions.merge()
+        ).await()
+
+        val existingMessages = chatRef
+            .collection("messages")
+            .limit(1)
+            .get()
+            .await()
+        if (existingMessages.isEmpty) {
+            val activationCreatedAt = maxOf(now, sessionStartAt)
+            val activationRef = chatRef.collection("messages").document(CHAT_ACTIVATION_MESSAGE_ID)
+            val activationMessage = FirestoreCoffeeChatMessage(
+                id = CHAT_ACTIVATION_MESSAGE_ID,
+                senderUserId = CHAT_ACTIVATION_SENDER_ID,
+                text = CHAT_ACTIVATION_TEXT,
+                createdAt = activationCreatedAt
+            )
+            try {
+                val activationCreated = FirebaseServiceLocator.firestore
+                    .runTransaction { transaction ->
+                        val latestChat = transaction.get(chatRef).toFirestoreCoffeeChat()
+                        val hasExistingLastMessage = latestChat?.lastMessage?.trim()?.isNotBlank() == true
+                        val activationSnapshot = transaction.get(activationRef)
+                        if (!activationSnapshot.exists() && !hasExistingLastMessage) {
+                            transaction.set(activationRef, activationMessage.toMap())
+                            transaction.set(
+                                chatRef,
+                                mapOf(
+                                    "updatedAt" to activationCreatedAt,
+                                    "lastMessage" to CHAT_ACTIVATION_TEXT,
+                                    "lastMessageAt" to activationCreatedAt
+                                ),
+                                SetOptions.merge()
+                            )
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    .await()
+
+                if (activationCreated) {
+                    Log.d(
+                        "COFFEE_CHAT_DEBUG",
+                        "chat activation message created chatId=$chatId inviteId=$normalizedInviteId"
+                    )
+                }
+            } catch (error: FirebaseFirestoreException) {
+                if (error.code != FirebaseFirestoreException.Code.ALREADY_EXISTS) {
+                    throw error
+                }
+            }
+        }
+
+        Log.d("COFFEE_CHAT_DEBUG", "chat created_or_ensured chatId=$chatId")
+        Log.d("COFFEE_CHAT_DEBUG", "chat resolved chatId=$chatId")
+        chatId
+    }
+
+    fun observeMessages(chatId: String): Flow<List<FirestoreCoffeeChatMessage>> = callbackFlow {
+        val normalizedChatId = chatId.trim()
+        if (normalizedChatId.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        val chatSnapshot = chatsCollection.document(normalizedChatId).get().await()
+        val chat = chatSnapshot.toFirestoreCoffeeChat()
+            ?: run {
+                trySend(emptyList())
+                close()
+                return@callbackFlow
+            }
+        val minCreatedAt = chat.sessionStartAt.takeIf { it > 0L } ?: 0L
+
+        val listener = chatsCollection
+            .document(normalizedChatId)
+            .collection("messages")
+            .whereGreaterThanOrEqualTo("createdAt", minCreatedAt)
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val messages = snapshot
+                    ?.documents
+                    ?.mapNotNull { it.toFirestoreCoffeeChatMessage() }
+                    ?: emptyList()
+                trySend(messages)
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    fun observeChatSummariesForUser(
+        userId: String,
+        limit: Long = DEFAULT_LIST_LIMIT
+    ): Flow<List<FirestoreCoffeeChat>> = callbackFlow {
+        val normalizedUserId = userId.trim()
+        if (normalizedUserId.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        val listener = chatsCollection
+            .whereArrayContains("participantIds", normalizedUserId)
+            .limit(limit)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                val chats = snapshot
+                    ?.documents
+                    ?.mapNotNull { it.toFirestoreCoffeeChat() }
+                    ?.sortedByDescending { it.lastMessageAt }
+                    ?: emptyList()
+                trySend(chats)
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    fun observeChatSummariesByInviteIds(
+        inviteIds: List<String>
+    ): Flow<Map<String, FirestoreCoffeeChat>> = callbackFlow {
+        val normalizedInviteIds = inviteIds
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (normalizedInviteIds.isEmpty()) {
+            trySend(emptyMap())
+            close()
+            return@callbackFlow
+        }
+
+        val summaryMap = mutableMapOf<String, FirestoreCoffeeChat>()
+        val listeners = mutableListOf<ListenerRegistration>()
+
+        normalizedInviteIds.forEach { inviteId ->
+            val chatId = chatDocumentId(inviteId)
+            val listener = chatsCollection
+                .document(chatId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        return@addSnapshotListener
+                    }
+
+                    val chat = snapshot?.toFirestoreCoffeeChat()
+                    if (chat == null) {
+                        summaryMap.remove(inviteId)
+                    } else {
+                        summaryMap[inviteId] = chat
+                    }
+                    trySend(summaryMap.toMap())
+                }
+            listeners.add(listener)
+        }
+
+        awaitClose { listeners.forEach { it.remove() } }
+    }
+
+    suspend fun sendMessage(
+        chatId: String,
+        senderUserId: String,
+        text: String
+    ): Result<Unit> = runCatching {
+        val normalizedChatId = chatId.trim()
+        val normalizedSender = senderUserId.trim()
+        val normalizedText = text.trim()
+        require(normalizedChatId.isNotBlank()) { "invalid_chat_id" }
+        require(normalizedSender.isNotBlank()) { "invalid_sender" }
+        require(normalizedText.isNotBlank()) { "invalid_message" }
+
+        val chatRef = chatsCollection.document(normalizedChatId)
+        val chatSnapshot = chatRef.get().await()
+        val chat = chatSnapshot.toFirestoreCoffeeChat()
+            ?: throw IllegalStateException("chat_not_found")
+
+        if (normalizedSender !in chat.participantIds) {
+            throw IllegalStateException("forbidden_chat_access")
+        }
+
+        val now = System.currentTimeMillis()
+        val messageRef = chatRef.collection("messages").document()
+        val message = FirestoreCoffeeChatMessage(
+            id = messageRef.id,
+            senderUserId = normalizedSender,
+            text = normalizedText,
+            createdAt = now
+        )
+        messageRef.set(message.toMap()).await()
+        chatRef.set(
+            mapOf(
+                "updatedAt" to now,
+                "lastMessage" to normalizedText.take(500),
+                "lastMessageAt" to now
+            ),
+            SetOptions.merge()
+        ).await()
     }
 }
 

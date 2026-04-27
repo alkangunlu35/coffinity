@@ -1,5 +1,6 @@
 package com.icoffee.app.ui.screens.brand
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -383,6 +384,11 @@ fun BrandImportSheet(
                                             R.string.brand_import_save_success
                                         } else {
                                             val message = saveResult.exceptionOrNull()?.message.orEmpty()
+                                            Log.e(
+                                                "BRAND_IMPORT_DEBUG",
+                                                "brand_import_save_failed message=$message",
+                                                saveResult.exceptionOrNull()
+                                            )
                                             if (message.startsWith("duplicate:")) {
                                                 R.string.brand_error_duplicate_existing
                                             } else if (message == "unauthorized") {

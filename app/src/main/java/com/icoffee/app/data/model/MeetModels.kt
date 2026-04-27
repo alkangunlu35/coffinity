@@ -24,6 +24,15 @@ data class CoffeeBuddySignal(
     val detail: String? = null
 )
 
+data class CoffeeBuddyIdentityProfile(
+    val userId: String,
+    val displayName: String? = null,
+    val email: String? = null,
+    val avatarUrl: String? = null,
+    val city: String? = null,
+    val country: String? = null
+)
+
 data class CoffeeBuddyCandidate(
     val userId: String,
     val displayName: String? = null,
@@ -40,4 +49,27 @@ data class CoffeeBuddyDiscoveryResult(
     val discoverableUserCount: Int,
     val candidates: List<CoffeeBuddyCandidate>,
     val profileReady: Boolean
+)
+
+data class CoffeeBuddyInviteItem(
+    val id: String,
+    val senderUserId: String,
+    val senderDisplayName: String,
+    val senderAvatarUrl: String? = null,
+    val placeName: String,
+    val inviteDate: Long,
+    val startTime: Long,
+    val endTime: Long,
+    val message: String,
+    val status: String,
+    val createdAt: Long,
+    val lastMessage: String = "",
+    val lastMessageAt: Long = 0L
+)
+
+data class CoffeeBuddyChatMessageItem(
+    val id: String,
+    val senderUserId: String,
+    val text: String,
+    val createdAt: Long
 )

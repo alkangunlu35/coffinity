@@ -1,6 +1,7 @@
 {
   "projects": {
-    "coffinity": "coffinity-72ef4"
+    "coffinity": "coffinity-72ef4",
+    "default": "coffinity-72ef4"
   },
   "targets": {},
   "etags": {}

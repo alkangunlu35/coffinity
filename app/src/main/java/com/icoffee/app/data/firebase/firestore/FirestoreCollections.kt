@@ -8,6 +8,7 @@ object FirestoreCollections {
     const val REVIEWS = "reviews"
     const val EVENTS = "events"
     const val EVENT_USAGE = "event_usage"
+    const val COFFEE_BUDDY_INVITES = "coffeeInvites"
     const val CLAIM_REQUESTS = "claim_requests"
     const val BRAND_SUGGESTIONS = "brand_suggestions"
     const val SUGGESTION_ACTION_LOGS = "suggestion_action_logs"

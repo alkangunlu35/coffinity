@@ -1,6 +1,5 @@
 package com.icoffee.app.data.membership
 
-import com.google.firebase.firestore.Query
 import com.icoffee.app.data.auth.FirebaseAuthRepository
 import com.icoffee.app.data.firebase.FirebaseServiceLocator
 import com.icoffee.app.data.firebase.firestore.FirestoreCollections
@@ -50,20 +49,18 @@ object EventMembershipRepository {
             return MonthlyEventUsage(0, 0)
         }
 
-        val range = monthRange(nowMillis)
+        val currentMonthKey = monthKey(nowMillis)
 
         val joins = queryUsageCount(
             normalizedUserId,
             ACTION_JOIN,
-            range.startMillis,
-            range.endMillisExclusive
+            currentMonthKey
         )
 
         val creates = queryUsageCount(
             normalizedUserId,
             ACTION_CREATE,
-            range.startMillis,
-            range.endMillisExclusive
+            currentMonthKey
         )
 
         return MonthlyEventUsage(
@@ -155,18 +152,17 @@ object EventMembershipRepository {
     private suspend fun queryUsageCount(
         userId: String,
         actionType: String,
-        startMillis: Long,
-        endMillisExclusive: Long
+        monthKey: String
     ): Int {
         return usageCollection
             .whereEqualTo("userId", userId)
-            .whereEqualTo("actionType", actionType)
-            .whereGreaterThanOrEqualTo("createdAt", startMillis)
-            .whereLessThan("createdAt", endMillisExclusive)
-            .orderBy("createdAt", Query.Direction.ASCENDING)
             .get()
             .await()
-            .size()
+            .documents
+            .count { doc ->
+                doc.getString("actionType") == actionType &&
+                    doc.getString("monthKey") == monthKey
+            }
     }
 
     private fun buildJoinDocId(userId: String, eventId: String, monthKey: String): String {
@@ -178,29 +174,5 @@ object EventMembershipRepository {
         val dateTime = instant.atZone(ZoneId.systemDefault())
         val yearMonth = YearMonth.of(dateTime.year, dateTime.month)
         return "${yearMonth.year}-${yearMonth.monthValue.toString().padStart(2, '0')}"
-    }
-
-    private data class MonthRange(
-        val startMillis: Long,
-        val endMillisExclusive: Long
-    )
-
-    private fun monthRange(nowMillis: Long): MonthRange {
-        val now = Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault())
-
-        val start = now.withDayOfMonth(1)
-            .toLocalDate()
-            .atStartOfDay(now.zone)
-            .toInstant()
-            .toEpochMilli()
-
-        val nextMonthStart = now.withDayOfMonth(1)
-            .plusMonths(1)
-            .toLocalDate()
-            .atStartOfDay(now.zone)
-            .toInstant()
-            .toEpochMilli()
-
-        return MonthRange(startMillis = start, endMillisExclusive = nextMonthStart)
     }
 }

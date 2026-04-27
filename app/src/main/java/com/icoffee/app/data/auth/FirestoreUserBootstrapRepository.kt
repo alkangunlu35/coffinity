@@ -3,8 +3,11 @@ package com.icoffee.app.data.auth
 import com.google.firebase.auth.FirebaseUser
 import com.icoffee.app.data.firebase.model.FirestoreUser
 import com.icoffee.app.data.firebase.repository.FirestoreUsersRepository
+import java.util.Locale
 
 object FirestoreUserBootstrapRepository {
+
+    private const val DEFAULT_DISPLAY_NAME = "Coffee Friend"
 
     suspend fun ensureUserDocument(
         firebaseUser: FirebaseUser,
@@ -20,13 +23,14 @@ object FirestoreUserBootstrapRepository {
             ?.takeIf { it.isNotBlank() }
             ?: "en"
 
-        val displayNameSeed = firebaseUser.displayName
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: firebaseUser.email
-                ?.substringBefore("@")
-                ?.trim()
-                .orEmpty()
+        val googleDisplayName = normalizeDisplayName(firebaseUser.displayName)
+        val existingDisplayName = normalizeDisplayName(existingUser?.displayName)
+        val emailDisplaySeed = normalizeEmailDisplaySeed(firebaseUser.email)
+        val resolvedDisplayName = resolveDisplayName(
+            googleDisplayName = googleDisplayName,
+            existingDisplayName = existingDisplayName,
+            emailDisplaySeed = emailDisplaySeed
+        )
 
         val normalizedPhotoUrl = firebaseUser.photoUrl?.toString()?.trim()?.takeIf { it.isNotBlank() }
         val normalizedEmail = firebaseUser.email.orEmpty().trim().lowercase()
@@ -34,7 +38,7 @@ object FirestoreUserBootstrapRepository {
         if (existingUser == null) {
             val newUser = FirestoreUser(
                 id = userId,
-                displayName = displayNameSeed,
+                displayName = resolvedDisplayName,
                 email = normalizedEmail,
                 photoUrl = normalizedPhotoUrl,
                 city = "",
@@ -52,9 +56,9 @@ object FirestoreUserBootstrapRepository {
             newUser
         } else {
             val repairedUser = existingUser.copy(
-                displayName = existingUser.displayName.ifBlank { displayNameSeed },
-                email = existingUser.email.ifBlank { normalizedEmail }.trim().lowercase(),
-                photoUrl = existingUser.photoUrl ?: normalizedPhotoUrl,
+                displayName = resolvedDisplayName,
+                email = normalizedEmail.ifBlank { existingUser.email }.trim().lowercase(),
+                photoUrl = normalizedPhotoUrl ?: existingUser.photoUrl,
                 language = existingUser.language.ifBlank { safeLanguage },
                 plan = existingUser.plan.ifBlank { "free" },
                 role = existingUser.role.ifBlank { "user" },
@@ -68,5 +72,61 @@ object FirestoreUserBootstrapRepository {
             FirestoreUsersRepository.update(repairedUser).getOrThrow()
             repairedUser
         }
+    }
+
+    private fun resolveDisplayName(
+        googleDisplayName: String?,
+        existingDisplayName: String?,
+        emailDisplaySeed: String?
+    ): String {
+        if (!isWeakDisplayName(googleDisplayName)) return googleDisplayName!!
+        if (!isWeakDisplayName(existingDisplayName)) return existingDisplayName!!
+        if (!isWeakDisplayName(emailDisplaySeed)) return emailDisplaySeed!!
+        return DEFAULT_DISPLAY_NAME
+    }
+
+    private fun normalizeDisplayName(raw: String?): String? {
+        val normalized = raw
+            ?.trim()
+            ?.replace(Regex("\\s+"), " ")
+            ?.takeIf { it.isNotBlank() }
+        return normalized
+    }
+
+    private fun normalizeEmailDisplaySeed(rawEmail: String?): String? {
+        val localPart = rawEmail
+            ?.trim()
+            ?.substringBefore("@")
+            ?.replace(Regex("[._+\\-]+"), " ")
+            ?.replace(Regex("[^\\p{L}\\p{N}\\s]"), " ")
+            ?.trim()
+            ?.replace(Regex("\\s+"), " ")
+            .orEmpty()
+
+        if (localPart.isBlank()) return null
+
+        val readable = localPart
+            .split(" ")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { token ->
+                token.lowercase(Locale.ROOT)
+                    .replaceFirstChar { first ->
+                        if (first.isLowerCase()) first.titlecase(Locale.ROOT) else first.toString()
+                    }
+            }
+            .trim()
+
+        return readable.takeIf { !isWeakDisplayName(it) }
+    }
+
+    private fun isWeakDisplayName(raw: String?): Boolean {
+        val value = raw?.trim().orEmpty()
+        if (value.isBlank()) return true
+
+        val compact = value.replace(" ", "")
+        if (compact.length <= 1) return true
+        if (compact.matches(Regex("^[A-Za-z0-9_-]{20,}$"))) return true
+
+        return false
     }
 }

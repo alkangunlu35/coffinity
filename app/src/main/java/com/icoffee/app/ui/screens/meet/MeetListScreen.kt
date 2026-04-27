@@ -1,14 +1,16 @@
+// FILE: app/src/main/java/com/icoffee/app/ui/screens/meet/MeetListScreen.kt
+// FULL REPLACEMENT
+
 package com.icoffee.app.ui.screens.meet
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,14 +51,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 import com.icoffee.app.R
 import com.icoffee.app.data.growth.GrowthAnalytics
 import com.icoffee.app.data.growth.GrowthEventNames
@@ -65,11 +76,16 @@ import com.icoffee.app.data.model.EventHostType
 import com.icoffee.app.data.model.MeetExploreSort
 import com.icoffee.app.data.model.MeetMood
 import com.icoffee.app.data.model.formattedPriceOrNull
-import com.icoffee.app.ui.components.PrimaryButton
 import com.icoffee.app.ui.components.CoffeeEmptyStateCard
+import com.icoffee.app.ui.components.PrimaryButton
 import com.icoffee.app.ui.components.coffinityPressMotion
 import com.icoffee.app.ui.theme.CoffeeSpacing
 import com.icoffee.app.viewmodel.MeetViewModel
+
+private enum class MeetListMode {
+    LIST,
+    MAP
+}
 
 @Composable
 fun MeetListScreen(
@@ -81,19 +97,29 @@ fun MeetListScreen(
     val context = LocalContext.current
     var selectedMoodFilter by rememberSaveable { mutableStateOf("ALL") }
     var selectedSort by rememberSaveable { mutableStateOf(MeetExploreSort.RELEVANCE.name) }
+    var selectedMode by rememberSaveable { mutableStateOf(MeetListMode.LIST) }
+
     val moodFilter = MeetMood.entries.firstOrNull { it.name == selectedMoodFilter }
     val activeSort = MeetExploreSort.valueOf(selectedSort)
+
     val events = meetViewModel.exploreEvents(
         selectedMood = moodFilter ?: MeetMood.CHILL,
         moodFilter = moodFilter,
         sort = activeSort
     )
+
     val nearbyEvents = remember(
         meetViewModel.meets,
         meetViewModel.userLatitude,
         meetViewModel.userLongitude
     ) {
         meetViewModel.nearbyBoostEvents(limit = 4)
+    }
+
+    val mapEvents = remember(events, nearbyEvents) {
+        (nearbyEvents + events)
+            .distinctBy { it.id }
+            .filter { it.latitude != 0.0 || it.longitude != 0.0 }
     }
 
     LaunchedEffect(nearbyEvents.map { it.id }.joinToString("|")) {
@@ -166,35 +192,55 @@ fun MeetListScreen(
                     onClick = onCreateMeet
                 )
 
-                Text(
-                    text = stringResource(R.string.meet_section_near_you),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color(0xFF2E2018)
-                )
-
-                if (nearbyEvents.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(CoffeeSpacing.sm)) {
-                        items(nearbyEvents, key = { it.id }) { nearby ->
-                            NearbyBoostCard(
-                                event = nearby,
-                                onClick = {
-                                    GrowthAnalytics.log(
-                                        GrowthEventNames.NEARBY_EVENT_CLICKED,
-                                        params = mapOf("eventId" to nearby.id, "source" to "meet_list")
-                                    )
-                                    onEventClick(nearby.id)
-                                }
+                MeetViewModeToggle(
+                    selectedMode = selectedMode,
+                    onSelectList = { selectedMode = MeetListMode.LIST },
+                    onSelectMap = {
+                        selectedMode = MeetListMode.MAP
+                        if (mapEvents.isNotEmpty()) {
+                            GrowthAnalytics.log(
+                                GrowthEventNames.NEARBY_SECTION_VIEWED,
+                                params = mapOf("count" to mapEvents.size, "source" to "meet_list_map")
                             )
                         }
                     }
-                } else {
-                    CoffeeEmptyStateCard(
-                        title = stringResource(R.string.meet_section_near_you),
-                        subtitle = stringResource(R.string.meet_nearby_fallback_empty),
-                        icon = Icons.Default.LocationOn,
-                        modifier = Modifier
-                            .fillMaxWidth()
+                )
+
+                if (selectedMode == MeetListMode.MAP) {
+                    EventMapSection(
+                        events = mapEvents,
+                        onEventClick = onEventClick
                     )
+                } else {
+                    Text(
+                        text = stringResource(R.string.meet_section_near_you),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = Color(0xFF2E2018)
+                    )
+
+                    if (nearbyEvents.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(CoffeeSpacing.sm)) {
+                            items(nearbyEvents, key = { it.id }) { nearby ->
+                                NearbyBoostCard(
+                                    event = nearby,
+                                    onClick = {
+                                        GrowthAnalytics.log(
+                                            GrowthEventNames.NEARBY_EVENT_CLICKED,
+                                            params = mapOf("eventId" to nearby.id, "source" to "meet_list")
+                                        )
+                                        onEventClick(nearby.id)
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        CoffeeEmptyStateCard(
+                            title = stringResource(R.string.meet_section_near_you),
+                            subtitle = stringResource(R.string.meet_nearby_fallback_empty),
+                            icon = Icons.Default.LocationOn,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -232,8 +278,7 @@ fun MeetListScreen(
                     title = stringResource(R.string.meet_no_rooms),
                     subtitle = stringResource(R.string.meet_explore_empty),
                     icon = Icons.Default.LocalCafe,
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -270,6 +315,146 @@ fun MeetListScreen(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun MeetViewModeToggle(
+    selectedMode: MeetListMode,
+    onSelectList: () -> Unit,
+    onSelectMap: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFF0E3D5), RoundedCornerShape(999.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        ModeChip(
+            modifier = Modifier.weight(1f),
+            label = "Liste",
+            selected = selectedMode == MeetListMode.LIST,
+            onClick = onSelectList
+        )
+        ModeChip(
+            modifier = Modifier.weight(1f),
+            label = "Harita",
+            selected = selectedMode == MeetListMode.MAP,
+            onClick = onSelectMap
+        )
+    }
+}
+
+@Composable
+private fun ModeChip(
+    modifier: Modifier = Modifier,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = modifier
+            .background(
+                if (selected) Color(0xFFDAB694) else Color.Transparent,
+                RoundedCornerShape(999.dp)
+            )
+            .coffinityPressMotion(
+                interactionSource = interactionSource,
+                pressedScale = 0.98f,
+                pressedAlpha = 0.98f
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) Color(0xFF523423) else Color(0xFF6E594B),
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun EventMapSection(
+    events: List<CoffeeMeet>,
+    onEventClick: (String) -> Unit
+) {
+    val fallbackLocation = LatLng(38.4237, 27.1428)
+    val firstLocation = events.firstOrNull()?.let { LatLng(it.latitude, it.longitude) } ?: fallbackLocation
+
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(firstLocation, if (events.size == 1) 15f else 11f)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = "Yakındaki meet'ler haritada",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = Color(0xFF2E2018)
+        )
+
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFCF8)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .shadow(
+                    elevation = 6.dp,
+                    shape = RoundedCornerShape(24.dp),
+                    ambientColor = Color(0x1E1D130D),
+                    spotColor = Color(0x281D130D)
+                )
+        ) {
+            if (events.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Haritada gösterecek konum bulunamadı",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF7B6658)
+                    )
+                }
+            } else {
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    properties = MapProperties(isMyLocationEnabled = false),
+                    uiSettings = MapUiSettings(
+                        zoomControlsEnabled = true,
+                        myLocationButtonEnabled = false,
+                        compassEnabled = true
+                    )
+                ) {
+                    events.forEach { event ->
+                        val hasCoordinates = event.latitude != 0.0 || event.longitude != 0.0
+                        if (hasCoordinates) {
+                            val markerPosition = LatLng(event.latitude, event.longitude)
+                            Marker(
+                                state = MarkerState(position = markerPosition),
+                                title = event.title,
+                                snippet = event.locationName,
+                                onClick = {
+                                    onEventClick(event.id)
+                                    true
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -313,7 +498,7 @@ private fun MeetEventCard(
     onSeeEvent: () -> Unit,
     onShare: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val participantLabel = stringResource(
         R.string.meet_participant_ratio,
         event.participants.size,
@@ -354,38 +539,33 @@ private fun MeetEventCard(
                     color = Color(0xFF2D2018),
                     modifier = Modifier.weight(1f)
                 )
-                Box(
-                    modifier = Modifier,
-                    contentAlignment = Alignment.CenterEnd
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    IconButton(
+                        onClick = onShare,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0x14B67A4D), CircleShape)
                     ) {
-                        IconButton(
-                            onClick = onShare,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(Color(0x14B67A4D), CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = stringResource(R.string.meet_share_action),
-                                tint = Color(0xFF8F5F3A),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .background(Color(0xFFECD8C3), RoundedCornerShape(999.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = participantLabel,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color(0xFF66422F)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = stringResource(R.string.meet_share_action),
+                            tint = Color(0xFF8F5F3A),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFFECD8C3), RoundedCornerShape(999.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = participantLabel,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color(0xFF66422F)
+                        )
                     }
                 }
             }
@@ -425,7 +605,9 @@ private fun MeetEventCard(
                         text = event.locationName,
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF6E594B),
-                        modifier = Modifier.width(138.dp)
+                        modifier = Modifier.width(138.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     IconButton(
                         onClick = { context.openMapFor(event) },
@@ -474,6 +656,7 @@ private fun MeetEventCard(
                     )
                 }
             }
+
             event.businessOffer?.let { offer ->
                 Box(
                     modifier = Modifier
@@ -567,14 +750,14 @@ private fun NearbyBoostCard(
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             color = Color(0xFF2D2018),
             maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             text = event.locationName,
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFF6E594B),
             maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             text = event.time,
@@ -585,17 +768,54 @@ private fun NearbyBoostCard(
 }
 
 private fun Context.openMapFor(event: CoffeeMeet) {
-    val encodedLocation = Uri.encode(event.locationName)
-    val uri = Uri.parse("geo:${event.latitude},${event.longitude}?q=${event.latitude},${event.longitude}($encodedLocation)")
-    val googleMapsIntent = Intent(Intent.ACTION_VIEW, uri).apply {
-        setPackage("com.google.android.apps.maps")
-    }
-    val fallbackIntent = Intent(Intent.ACTION_VIEW, uri)
+    val hasValidLatLng = event.latitude != 0.0 && event.longitude != 0.0
+    val hasName = event.locationName.isNotBlank()
 
     try {
-        startActivity(googleMapsIntent)
-    } catch (_: ActivityNotFoundException) {
-        startActivity(fallbackIntent)
+        val mapsIntent = when {
+            hasValidLatLng -> {
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("google.navigation:q=${event.latitude},${event.longitude}")
+                )
+            }
+
+            hasName -> {
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("geo:0,0?q=${Uri.encode(event.locationName)}")
+                )
+            }
+
+            else -> null
+        }?.apply {
+            setPackage("com.google.android.apps.maps")
+        }
+
+        if (mapsIntent != null && mapsIntent.resolveActivity(packageManager) != null) {
+            startActivity(mapsIntent)
+            return
+        }
+
+        val browserUrl = when {
+            hasValidLatLng -> {
+                "https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}"
+            }
+
+            hasName -> {
+                "https://www.google.com/maps/search/?api=1&query=${Uri.encode(event.locationName)}"
+            }
+
+            else -> null
+        }
+
+        if (browserUrl != null) {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(browserUrl)))
+        } else {
+            Toast.makeText(this, "Konum bilgisi bulunamadı", Toast.LENGTH_SHORT).show()
+        }
+    } catch (_: Exception) {
+        Toast.makeText(this, "Harita açılamadı", Toast.LENGTH_SHORT).show()
     }
 }
 

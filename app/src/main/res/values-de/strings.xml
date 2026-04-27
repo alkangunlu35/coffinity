@@ -121,6 +121,7 @@
     <string name="meet_title">Coffinity Meet</string>
     <string name="meet_subtitle">Finde deinen Kaffee-Moment</string>
     <string name="meet_create">Event erstellen</string>
+    <string name="meet_create_subtitle">Plane ein entspanntes Kaffee-Treffen in deiner Nähe.</string>
     <string name="meet_join">Teilnehmen</string>
     <string name="meet_no_rooms">Hier gibt es noch keine Meetups.</string>
     <string name="meet_find_now">Kaffeefreunde finden</string>
@@ -513,6 +514,10 @@
     <string name="meet_signin_cta">Anmelden</string>
     <string name="meet_signin_create_account">Noch kein Konto? Konto erstellen</string>
     <string name="meet_signin_error_password">Bitte gib dein Passwort ein.</string>
+    <string name="welcome_hero_content_desc">Coffinity Begrüßungsbild</string>
+    <string name="welcome_title">Erlebe die Freude\nam Kaffee</string>
+    <string name="welcome_subtitle">Entdecke Premium-Bohnen, warme Aromen\nund jeden Tag schöne Kaffeemomente.</string>
+    <string name="welcome_cta">Jetzt entdecken</string>
     <string name="auth_error_wrong_password">Das Passwort ist nicht korrekt.</string>
     <string name="auth_error_user_not_found">Für diese E-Mail wurde kein Konto gefunden.</string>
     <string name="auth_error_too_many_requests">Zu viele Versuche. Bitte warte kurz und versuche es erneut.</string>

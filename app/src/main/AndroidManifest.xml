@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".ICoffeeApplication"
@@ -14,28 +15,41 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ICoffee">
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data
-                    android:scheme="coffinity"
-                    android:host="event" />
-                <data
-                    android:scheme="https"
-                    android:host="coffinity.app"
-                    android:pathPrefix="/event/" />
+                <data android:scheme="coffinity" android:host="event" />
+                <data android:scheme="coffinity" android:host="meet" />
+                <data android:scheme="https" android:host="coffinity.net" android:pathPrefix="/event/" />
+                <data android:scheme="https" android:host="coffinity.net" android:pathPrefix="/meet" />
             </intent-filter>
+
         </activity>
+
+        <service
+            android:name=".notifications.CoffinityFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
     </application>
 
 </manifest>

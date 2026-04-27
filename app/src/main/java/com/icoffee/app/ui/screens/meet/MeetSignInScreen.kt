@@ -1,10 +1,15 @@
 package com.icoffee.app.ui.screens.meet
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +23,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -44,14 +50,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -76,6 +87,13 @@ fun MeetSignInScreen(
     backgroundRes: Int = R.drawable.coffinity_bg
 ) {
     val context = LocalContext.current
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            authViewModel.handleGoogleSignInResult(result.data, context, onSignInSuccess)
+        }
+    }
 
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -108,20 +126,11 @@ fun MeetSignInScreen(
                     )
                 )
         )
-
-        IconButton(
-            onClick = onBack,
+        Box(
             modifier = Modifier
-                .padding(start = 12.dp, top = 12.dp)
-                .align(Alignment.TopStart)
-                .background(Color(0x2D1A0F0A), RoundedCornerShape(14.dp))
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.meet_back),
-                tint = SignInTitleCream
-            )
-        }
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.24f))
+        )
 
         Column(
             modifier = Modifier
@@ -229,10 +238,19 @@ fun MeetSignInScreen(
                 }
             )
 
+            SignInSocialAuthButton(
+                text = stringResource(R.string.meet_signup_google),
+                logo = { SignInGoogleLogoMark() },
+                onClick = {
+                    val intent = authViewModel.getGoogleSignInIntent(context)
+                    googleSignInLauncher.launch(intent)
+                }
+            )
+
             Text(
                 text = stringResource(R.string.meet_signin_create_account),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xB3D6BFA7),
+                color = Color(0xD9D6BFA7),
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -255,6 +273,119 @@ fun MeetSignInScreen(
             ) {
                 CircularProgressIndicator(color = Color(0xFFE69A3A))
             }
+        }
+    }
+}
+
+@Composable
+private fun SignInSocialAuthButton(
+    text: String,
+    logo: @Composable () -> Unit,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .coffinityPressMotion(
+                interactionSource = interactionSource,
+                pressedScale = 0.985f,
+                pressedAlpha = 0.95f
+            )
+            .clip(RoundedCornerShape(26.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0x5E1C120D), Color(0x4D140C08))
+                )
+            )
+            .border(1.dp, Color(0x52FFFFFF), RoundedCornerShape(26.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            logo()
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = SignInTitleCream.copy(alpha = if (pressed) 0.88f else 0.98f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SignInGoogleLogoMark() {
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(16.dp)) {
+            val strokeWidth = size.minDimension * 0.22f
+            val diameter = size.minDimension - strokeWidth
+            val topLeft = Offset(
+                x = (size.width - diameter) / 2f,
+                y = (size.height - diameter) / 2f
+            )
+            val arcSize = Size(diameter, diameter)
+            val style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+
+            drawArc(
+                color = Color(0xFFEA4335),
+                startAngle = 45f,
+                sweepAngle = 112f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = style
+            )
+            drawArc(
+                color = Color(0xFFFBBC05),
+                startAngle = 157f,
+                sweepAngle = 82f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = style
+            )
+            drawArc(
+                color = Color(0xFF34A853),
+                startAngle = 239f,
+                sweepAngle = 88f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = style
+            )
+            drawArc(
+                color = Color(0xFF4285F4),
+                startAngle = 327f,
+                sweepAngle = 102f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = style
+            )
+            drawLine(
+                color = Color(0xFF4285F4),
+                start = Offset(size.width * 0.52f, size.height * 0.5f),
+                end = Offset(size.width * 0.9f, size.height * 0.5f),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
         }
     }
 }
@@ -297,20 +428,30 @@ private fun SignInUnderlineField(
                 modifier = Modifier
                     .weight(1f)
                     .height(24.dp),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = SignInTitleCream),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = SignInTitleCream,
+                    platformStyle = PlatformTextStyle(includeFontPadding = false)
+                ),
                 cursorBrush = SolidColor(SignInTitleCream),
                 singleLine = true,
                 visualTransformation = visualTransformation,
                 keyboardOptions = KeyboardOptions(keyboardType = effectiveKeyboardType),
                 decorationBox = { innerTextField ->
-                    if (value.isBlank()) {
-                        Text(
-                            text = placeholder,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Color(0x99D6BFA7)
-                        )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (value.isBlank()) {
+                            Text(
+                                text = placeholder,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    platformStyle = PlatformTextStyle(includeFontPadding = false)
+                                ),
+                                color = Color(0x99D6BFA7)
+                            )
+                        }
+                        innerTextField()
                     }
-                    innerTextField()
                 }
             )
             if (isPassword) {

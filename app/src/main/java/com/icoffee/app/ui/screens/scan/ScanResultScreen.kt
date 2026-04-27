@@ -80,6 +80,7 @@ import com.icoffee.app.ui.theme.MutedText
 import com.icoffee.app.ui.theme.SurfaceDark
 import com.icoffee.app.ui.theme.SurfaceDarkAlt
 import com.icoffee.app.ui.theme.SurfaceStroke
+import com.icoffee.app.util.ENABLE_AFFILIATE_SECTION
 import com.icoffee.app.data.profile.TasteReaction
 import com.icoffee.app.viewmodel.ScanResultUiState
 import com.icoffee.app.viewmodel.ScanResultViewModel
@@ -157,20 +158,22 @@ fun ScanResultScreen(
                         )
                     }
                     item { MatchSection(matchResult = matchResult) }
-                    AffiliateRepository.forCoffeeType(profile.coffeeType)?.let { offer ->
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(
-                                    text = stringResource(R.string.affiliate_section_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = CreamText.copy(alpha = 0.80f)
-                                )
-                                AffiliateOfferCard(offer = offer, darkTheme = true)
-                                Text(
-                                    text = stringResource(R.string.affiliate_disclosure),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MutedText.copy(alpha = 0.55f)
-                                )
+                    if (ENABLE_AFFILIATE_SECTION) {
+                        AffiliateRepository.forCoffeeType(profile.coffeeType)?.let { offer ->
+                            item {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(
+                                        text = stringResource(R.string.affiliate_section_title),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = CreamText.copy(alpha = 0.80f)
+                                    )
+                                    AffiliateOfferCard(offer = offer, darkTheme = true)
+                                    Text(
+                                        text = stringResource(R.string.affiliate_disclosure),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MutedText.copy(alpha = 0.55f)
+                                    )
+                                }
                             }
                         }
                     }

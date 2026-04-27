@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +52,8 @@ import com.icoffee.app.R
 import com.icoffee.app.data.model.BeanRepository
 import com.icoffee.app.data.model.Continent
 import com.icoffee.app.data.model.CountryBeans
+import com.icoffee.app.localization.AppLocaleManager
+import com.icoffee.app.util.CountryDisplayNames
 
 private val BgDark = Color(0xFF0D0602)
 private val TextPrimary = Color(0xFFF5E6D3)
@@ -395,6 +398,8 @@ private fun CountryCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val languageCode = AppLocaleManager.currentLanguage(context).code
     val continentColor = when (country.continent) {
         Continent.AMERICAS -> Color(0xFF2A6B3A)
         Continent.AFRICA -> Color(0xFF6B2A20)
@@ -423,7 +428,7 @@ private fun CountryCard(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(text = country.flag, fontSize = 30.sp)
             Text(
-                text = country.name,
+                text = CountryDisplayNames.localizedName(country.name, languageCode),
                 style = TextStyle(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,

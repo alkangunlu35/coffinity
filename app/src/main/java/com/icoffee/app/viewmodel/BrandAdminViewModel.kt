@@ -1,5 +1,6 @@
 package com.icoffee.app.viewmodel
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
@@ -27,6 +28,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class BrandAdminViewModel : ViewModel() {
+    private companion object {
+        private const val ADMIN_DEBUG = "ADMIN_DEBUG"
+        private const val ADMIN_ROLE = "ADMIN_ROLE"
+        private const val ADMIN_LOAD = "ADMIN_LOAD"
+        private const val ADMIN_ERROR = "ADMIN_ERROR"
+    }
 
     var refreshVersion by mutableIntStateOf(0)
         private set
@@ -45,21 +52,58 @@ class BrandAdminViewModel : ViewModel() {
 
     private val _isBrandStreamLoading = MutableStateFlow(true)
     val isBrandStreamLoading: StateFlow<Boolean> = _isBrandStreamLoading.asStateFlow()
+    private val _adminLoadError = MutableStateFlow<String?>(null)
+    val adminLoadError: StateFlow<String?> = _adminLoadError.asStateFlow()
 
     init {
+        startRealtimeBrandSync()
+    }
+
+    fun retryAdminPanelLoad() {
+        Log.d(ADMIN_LOAD, "admin_panel_retry_requested userId=${currentUserId.ifBlank { "none" }}")
         startRealtimeBrandSync()
     }
 
     private fun startRealtimeBrandSync() {
         brandStreamJob?.cancel()
         _isBrandStreamLoading.value = true
+        _adminLoadError.value = null
+        Log.d(ADMIN_LOAD, "admin_panel_stream_start userId=${currentUserId.ifBlank { "none" }}")
         brandStreamJob = viewModelScope.launch {
-            BrandManagementRepository.observeSessionAndManageableBrandsForCurrentUser()
-                .collect { state ->
-                    _sessionState.value = state.session
-                    _manageableBrandsState.value = state.brands
-                    _isBrandStreamLoading.value = false
+            try {
+                BrandManagementRepository.observeSessionAndManageableBrandsForCurrentUser()
+                    .collect { state ->
+                        _sessionState.value = state.session
+                        _manageableBrandsState.value = state.brands
+                        _isBrandStreamLoading.value = false
+                        _adminLoadError.value = null
+                        val roleValue = state.session?.role?.storageValue ?: "none"
+                        val canAccess = state.session?.canAccessPanel ?: false
+                        Log.d(
+                            ADMIN_LOAD,
+                            "admin_panel_stream_update role=$roleValue canAccess=$canAccess brands=${state.brands.size}"
+                        )
+                        if (!canAccess) {
+                            Log.d(ADMIN_ROLE, "admin_panel_access_denied role=$roleValue")
+                        }
+                    }
+            } catch (error: Throwable) {
+                Log.e(ADMIN_ERROR, "admin_panel_stream_failed", error)
+                _adminLoadError.value = when {
+                    error.message.isNullOrBlank() -> "unknown"
+                    else -> error.message!!.trim().take(120)
                 }
+                _manageableBrandsState.value = emptyList()
+            } finally {
+                if (_isBrandStreamLoading.value) {
+                    Log.d(ADMIN_DEBUG, "admin_panel_loading_force_finish")
+                }
+                _isBrandStreamLoading.value = false
+                Log.d(
+                    ADMIN_LOAD,
+                    "admin_panel_stream_finish hasError=${_adminLoadError.value != null}"
+                )
+            }
         }
     }
 
@@ -82,6 +126,11 @@ class BrandAdminViewModel : ViewModel() {
             _sessionState.value = session
             _manageableBrandsState.value = it
             _isBrandStreamLoading.value = false
+            _adminLoadError.value = null
+            Log.d(
+                ADMIN_LOAD,
+                "admin_panel_manual_load role=${session.role.storageValue} brands=${it.size}"
+            )
         }
     }
 

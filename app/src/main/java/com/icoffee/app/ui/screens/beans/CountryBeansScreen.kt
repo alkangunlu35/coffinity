@@ -158,7 +158,7 @@ fun CountryBeansScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         row.forEach { country ->

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -53,17 +52,46 @@ fun WelcomeScreen(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val constraintsPx = constraints
         val compactPhone = maxHeight < 700.dp
+        val tallPhone = maxHeight >= 860.dp
         val safeHeight = maxHeight
 
-        val sidePadding = if (compactPhone) 24.dp else 30.dp
-        val brandTopPadding = (safeHeight * 0.052f).coerceIn(30.dp, 50.dp)
-        val dividerGap = (safeHeight * 0.013f).coerceIn(8.dp, 14.dp)
-        val titleTopPadding = (safeHeight * 0.043f).coerceIn(26.dp, 44.dp)
-        val subtitleGap = (safeHeight * 0.014f).coerceIn(9.dp, 16.dp)
-        val ctaBottomPadding = (safeHeight * 0.025f).coerceIn(14.dp, 26.dp)
-        val textBlockLift = (safeHeight * 0.055f).coerceIn(28.dp, 48.dp)
+        val sidePadding = when {
+            compactPhone -> 22.dp
+            tallPhone -> 32.dp
+            else -> 28.dp
+        }
+        val brandTopPadding = when {
+            compactPhone -> (safeHeight * 0.036f).coerceIn(18.dp, 24.dp)
+            tallPhone -> (safeHeight * 0.045f).coerceIn(34.dp, 46.dp)
+            else -> (safeHeight * 0.041f).coerceIn(26.dp, 34.dp)
+        }
+        val dividerGap = when {
+            compactPhone -> 9.dp
+            tallPhone -> 13.dp
+            else -> 11.dp
+        }
+        val titleTopPadding = when {
+            compactPhone -> 18.dp
+            tallPhone -> 30.dp
+            else -> 24.dp
+        }
+        val subtitleGap = when {
+            compactPhone -> 10.dp
+            tallPhone -> 14.dp
+            else -> 12.dp
+        }
+        val ctaBottomPadding = when {
+            compactPhone -> 10.dp
+            tallPhone -> 24.dp
+            else -> 16.dp
+        }
+        val contentToCtaGap = when {
+            compactPhone -> 10.dp
+            tallPhone -> 22.dp
+            else -> 14.dp
+        }
         val ctaShape = RoundedCornerShape(34.dp)
-        val ctaHeight = if (compactPhone) 60.dp else 64.dp
+        val ctaHeight = if (compactPhone) 58.dp else 64.dp
 
         Box(modifier = Modifier.fillMaxSize()) {
             Image(
@@ -136,7 +164,6 @@ fun WelcomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset(y = -textBlockLift)
                 ) {
                     Spacer(modifier = Modifier.height(brandTopPadding))
 
@@ -205,6 +232,7 @@ fun WelcomeScreen(
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(contentToCtaGap))
 
                 Box(
                     modifier = Modifier

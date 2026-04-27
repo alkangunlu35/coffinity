@@ -13,6 +13,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -59,16 +61,23 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.icoffee.app.R
+import com.icoffee.app.localization.AppLocaleManager
 import com.icoffee.app.ui.components.coffinityPressMotion
+import com.icoffee.app.util.LegalLinks
 import com.icoffee.app.viewmodel.AuthViewModel
 
 private val TitleCream = Color(0xFFF5E6D3)
@@ -76,6 +85,8 @@ private val SubtitleCream = Color(0xB3F5E6D3)
 private val FormBorder = Color(0x1FFFFFFF)
 private val DividerTone = Color(0x2EF5E6D3)
 private val ErrorRed = Color(0xFFFF6B6B)
+private const val TagTerms = "terms"
+private const val TagPrivacy = "privacy"
 
 @Composable
 fun MeetSignUpScreen(
@@ -129,21 +140,11 @@ fun MeetSignUpScreen(
                     )
                 )
         )
-
-        // Back button
-        IconButton(
-            onClick = onBack,
+        Box(
             modifier = Modifier
-                .padding(start = 12.dp, top = 12.dp)
-                .align(Alignment.TopStart)
-                .background(Color(0x2D1A0F0A), RoundedCornerShape(14.dp))
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.meet_back),
-                tint = TitleCream
-            )
-        }
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.25f))
+        )
 
         // Content
         Column(
@@ -303,19 +304,13 @@ fun MeetSignUpScreen(
             )
 
             // Terms
-            Text(
-                text = stringResource(R.string.meet_signup_terms),
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xB3D6BFA7),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+            MeetLegalLinksText(modifier = Modifier.fillMaxWidth())
 
             // Sign in
             Text(
                 text = stringResource(R.string.meet_signup_signin),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xB3D6BFA7),
+                color = Color(0xE0D6BFA7),
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -379,15 +374,16 @@ private fun SignUpUnderlineField(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 10.dp),
+                .defaultMinSize(minHeight = 48.dp)
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = Color(0xCFF5E6D3),
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
             BasicTextField(
                 value = value,
@@ -395,20 +391,30 @@ private fun SignUpUnderlineField(
                 modifier = Modifier
                     .weight(1f)
                     .height(24.dp),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = TitleCream),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = TitleCream,
+                    platformStyle = PlatformTextStyle(includeFontPadding = false)
+                ),
                 cursorBrush = SolidColor(TitleCream),
                 singleLine = true,
                 visualTransformation = visualTransformation,
                 keyboardOptions = KeyboardOptions(keyboardType = effectiveKeyboardType),
                 decorationBox = { innerTextField ->
-                    if (value.isBlank()) {
-                        Text(
-                            text = placeholder,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Color(0x99D6BFA7)
-                        )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (value.isBlank()) {
+                            Text(
+                                text = placeholder,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    platformStyle = PlatformTextStyle(includeFontPadding = false)
+                                ),
+                                color = Color(0x99D6BFA7)
+                            )
+                        }
+                        innerTextField()
                     }
-                    innerTextField()
                 }
             )
             if (isPassword) {
@@ -418,7 +424,7 @@ private fun SignUpUnderlineField(
                     contentDescription = null,
                     tint = Color(0x88D6BFA7),
                     modifier = Modifier
-                        .size(18.dp)
+                        .size(20.dp)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -445,32 +451,36 @@ private fun SocialAuthButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(54.dp)
             .coffinityPressMotion(
                 interactionSource = interactionSource,
                 pressedScale = 0.985f,
                 pressedAlpha = 0.95f
             )
             .clip(RoundedCornerShape(26.dp))
-            .background(Color(0x331A0F0A))
-            .border(1.dp, Color(0x36FFFFFF), RoundedCornerShape(26.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0x5E1C120D), Color(0x4D140C08))
+                )
+            )
+            .border(1.dp, Color(0x52FFFFFF), RoundedCornerShape(26.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = 20.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             logo()
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                color = TitleCream.copy(alpha = if (pressed) 0.85f else 0.94f)
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = TitleCream.copy(alpha = if (pressed) 0.88f else 0.98f)
             )
         }
     }
@@ -482,8 +492,8 @@ private fun BenefitRow(text: String) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "•", color = Color(0xD9D6BFA7), style = MaterialTheme.typography.bodyMedium)
-        Text(text = text, color = Color(0xD9D6BFA7), style = MaterialTheme.typography.bodySmall)
+        Text(text = "•", color = Color(0xE8D6BFA7), style = MaterialTheme.typography.bodyMedium)
+        Text(text = text, color = Color(0xE8D6BFA7), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -561,20 +571,149 @@ private fun CoffeeBeanDividerIcon() {
 }
 
 @Composable
+private fun MeetLegalLinksText(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    val languageCode = AppLocaleManager.currentLanguage(context).code
+    val isTurkish = LegalLinks.normalizeLanguageCode(languageCode) == "tr"
+    val termsUrl = LegalLinks.termsUrl(languageCode)
+    val privacyUrl = LegalLinks.privacyUrl(languageCode)
+
+    val termsLabel = if (isTurkish) "Koşullar" else "Terms"
+    val privacyLabel = if (isTurkish) "Gizlilik Politikası" else "Privacy Policy"
+    val fullText = if (isTurkish) {
+        "Devam ederek Koşullar ve Gizlilik Politikası'nı kabul etmiş olursun"
+    } else {
+        "By continuing, you agree to the Terms and Privacy Policy"
+    }
+
+    val annotated = buildAnnotatedString {
+        append(fullText)
+
+        val termsStart = fullText.indexOf(termsLabel)
+        if (termsStart >= 0) {
+            val termsEnd = termsStart + termsLabel.length
+            addStyle(
+                style = SpanStyle(
+                    color = Color(0xFFF5E6D3),
+                    fontWeight = FontWeight.SemiBold,
+                    textDecoration = TextDecoration.Underline
+                ),
+                start = termsStart,
+                end = termsEnd
+            )
+            addStringAnnotation(
+                tag = TagTerms,
+                annotation = termsUrl,
+                start = termsStart,
+                end = termsEnd
+            )
+        }
+
+        val privacyStart = fullText.indexOf(privacyLabel)
+        if (privacyStart >= 0) {
+            val privacyEnd = privacyStart + privacyLabel.length
+            addStyle(
+                style = SpanStyle(
+                    color = Color(0xFFF5E6D3),
+                    fontWeight = FontWeight.SemiBold,
+                    textDecoration = TextDecoration.Underline
+                ),
+                start = privacyStart,
+                end = privacyEnd
+            )
+            addStringAnnotation(
+                tag = TagPrivacy,
+                annotation = privacyUrl,
+                start = privacyStart,
+                end = privacyEnd
+            )
+        }
+    }
+
+    ClickableText(
+        text = annotated,
+        modifier = modifier,
+        style = MaterialTheme.typography.bodySmall.copy(
+            color = Color(0xE0D6BFA7),
+            textAlign = TextAlign.Center
+        ),
+        onClick = { offset ->
+            annotated.getStringAnnotations(tag = TagTerms, start = offset, end = offset)
+                .firstOrNull()
+                ?.let { uriHandler.openUri(it.item); return@ClickableText }
+            annotated.getStringAnnotations(tag = TagPrivacy, start = offset, end = offset)
+                .firstOrNull()
+                ?.let { uriHandler.openUri(it.item) }
+        }
+    )
+}
+
+@Composable
 private fun GoogleLogoMark() {
     Box(
         modifier = Modifier
-            .size(22.dp)
+            .size(24.dp)
             .clip(androidx.compose.foundation.shape.CircleShape)
             .background(Color.White),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "G",
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF4285F4)
+        Canvas(modifier = Modifier.size(16.dp)) {
+            val strokeWidth = size.minDimension * 0.22f
+            val diameter = size.minDimension - strokeWidth
+            val topLeft = Offset(
+                x = (size.width - diameter) / 2f,
+                y = (size.height - diameter) / 2f
             )
-        )
+            val arcSize = Size(diameter, diameter)
+            val style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round
+            )
+
+            drawArc(
+                color = Color(0xFFEA4335),
+                startAngle = 45f,
+                sweepAngle = 112f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = style
+            )
+            drawArc(
+                color = Color(0xFFFBBC05),
+                startAngle = 157f,
+                sweepAngle = 82f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = style
+            )
+            drawArc(
+                color = Color(0xFF34A853),
+                startAngle = 239f,
+                sweepAngle = 88f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = style
+            )
+            drawArc(
+                color = Color(0xFF4285F4),
+                startAngle = 327f,
+                sweepAngle = 102f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = style
+            )
+            drawLine(
+                color = Color(0xFF4285F4),
+                start = Offset(size.width * 0.52f, size.height * 0.5f),
+                end = Offset(size.width * 0.9f, size.height * 0.5f),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+        }
     }
 }

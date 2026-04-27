@@ -164,6 +164,8 @@ object MeetDiscoveryEngine {
         radiusKm: Double
     ): List<CoffeeMeet> {
         return events.filter {
+            // Keep events with unknown coordinates visible instead of dropping them from discovery.
+            if (it.latitude == 0.0 && it.longitude == 0.0) return@filter true
             distanceKm(
                 lat1 = userLatitude,
                 lon1 = userLongitude,

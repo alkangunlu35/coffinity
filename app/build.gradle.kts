@@ -116,9 +116,9 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
-    implementation("androidx.room:room-runtime:2.7.0-alpha11")
-    implementation("androidx.room:room-ktx:2.7.0-alpha11")
-    ksp("androidx.room:room-compiler:2.7.0-alpha11")
+    implementation("androidx.room:room-runtime:2.8.4")
+    implementation("androidx.room:room-ktx:2.8.4")
+    ksp("androidx.room:room-compiler:2.8.4")
 
     implementation("androidx.camera:camera-core:1.3.4")
     implementation("androidx.camera:camera-camera2:1.3.4")

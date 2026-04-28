@@ -42,7 +42,7 @@ fun UpgradePaywallScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Text(
-                    text = "Upgrade Required",
+                    text = "Premium Yakında",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.Bold
                     ),
@@ -50,7 +50,7 @@ fun UpgradePaywallScreen(
                 )
 
                 Text(
-                    text = "Limitine ulaştın. Daha fazla etkinlik oluşturmak, daha fazla etkinliğe katılmak ve daha büyük buluşmalar açmak için planını yükselt.",
+                    text = "Premium ve Business planları yakında geliyor. Şu anda herkes ücretsiz planı kullanıyor — limitlere takıldıysan bize geri bildirim yollayabilirsin.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color(0xFFD7C2A8)
                 )

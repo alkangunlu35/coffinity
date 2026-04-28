@@ -1155,4 +1155,10 @@
     <string-array name="rec_adventurous_2_tags"><item>Bold</item><item>Cold</item></string-array>
     <string-array name="rec_cozy_1_tags"><item>Creamy</item><item>Warm</item></string-array>
     <string-array name="rec_cozy_2_tags"><item>Full-bodied</item><item>Deep</item></string-array>
+    <string name="location_picker_loading">Selecting location…</string>
+    <string name="location_picker_default_name">Selected location</string>
+    <string name="meet_nearby_map_title">Nearby meets on map</string>
+    <string name="meet_no_locations_to_show">No locations to show on map</string>
+    <string name="meet_location_unavailable_toast">Location information not available</string>
+    <string name="meet_map_open_failed_toast">Could not open map</string>
 </resources>

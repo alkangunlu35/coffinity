@@ -1127,4 +1127,10 @@
     <string name="meet_nearby_fallback_empty">Yakında etkinlik yok. Yaklaşan kahve buluşmaları burada görünecek.</string>
     <string name="meet_location_maps_enter_first">Önce bir konum gir.</string>
     <string name="meet_location_maps_open_failed">Google Haritalar şu anda açılamadı.</string>
+    <string name="location_picker_loading">Konum seçiliyor…</string>
+    <string name="location_picker_default_name">Seçilen Konum</string>
+    <string name="meet_nearby_map_title">Yakındaki meet\'ler haritada</string>
+    <string name="meet_no_locations_to_show">Haritada gösterecek konum bulunamadı</string>
+    <string name="meet_location_unavailable_toast">Konum bilgisi bulunamadı</string>
+    <string name="meet_map_open_failed_toast">Harita açılamadı</string>
 </resources>

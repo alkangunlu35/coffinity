@@ -397,7 +397,7 @@ private fun EventMapSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-            text = "Yakındaki meet'ler haritada",
+            text = stringResource(R.string.meet_nearby_map_title),
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
             color = Color(0xFF2E2018)
         )
@@ -422,7 +422,7 @@ private fun EventMapSection(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Haritada gösterecek konum bulunamadı",
+                        text = stringResource(R.string.meet_no_locations_to_show),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF7B6658)
                     )
@@ -812,10 +812,10 @@ private fun Context.openMapFor(event: CoffeeMeet) {
         if (browserUrl != null) {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(browserUrl)))
         } else {
-            Toast.makeText(this, "Konum bilgisi bulunamadı", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.meet_location_unavailable_toast), Toast.LENGTH_SHORT).show()
         }
     } catch (_: Exception) {
-        Toast.makeText(this, "Harita açılamadı", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.meet_map_open_failed_toast), Toast.LENGTH_SHORT).show()
     }
 }
 

@@ -8,6 +8,8 @@ import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.res.stringResource
+import com.icoffee.app.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -35,8 +37,9 @@ fun LocationPickerScreen(
         mutableStateOf(initialLocation)
     }
 
+    val initialLocationLabel = stringResource(R.string.location_picker_loading)
     var locationName by remember {
-        mutableStateOf("Konum seçiliyor...")
+        mutableStateOf(initialLocationLabel)
     }
 
     val cameraPositionState = rememberCameraPositionState {
@@ -50,6 +53,8 @@ fun LocationPickerScreen(
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    val defaultLocationName = stringResource(R.string.location_picker_default_name)
+
     // 🔥 ADRES ÇÖZME
     fun resolveAddress(latLng: LatLng) {
         try {
@@ -59,12 +64,12 @@ fun LocationPickerScreen(
                 1
             )
             if (!addresses.isNullOrEmpty()) {
-                locationName = addresses[0].getAddressLine(0) ?: "Seçilen Konum"
+                locationName = addresses[0].getAddressLine(0) ?: defaultLocationName
             } else {
-                locationName = "Seçilen Konum"
+                locationName = defaultLocationName
             }
         } catch (e: Exception) {
-            locationName = "Seçilen Konum"
+            locationName = defaultLocationName
         }
     }
 
@@ -76,7 +81,7 @@ fun LocationPickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Konum Seç") },
+                title = { Text(stringResource(R.string.meet_location_picker_title)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
                         Text("Geri")

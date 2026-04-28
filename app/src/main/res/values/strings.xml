@@ -1161,4 +1161,18 @@
     <string name="meet_no_locations_to_show">No locations to show on map</string>
     <string name="meet_location_unavailable_toast">Location information not available</string>
     <string name="meet_map_open_failed_toast">Could not open map</string>
+    <string name="create_meet_validation_title">Enter a title</string>
+    <string name="create_meet_validation_location">Select a location</string>
+    <string name="create_meet_validation_purpose">Select a mood</string>
+    <string name="create_meet_validation_date">Select a date</string>
+    <string name="create_meet_validation_time">Select a time</string>
+    <string name="create_meet_section_info">Meet Information</string>
+    <string name="create_meet_location_hint_first">Enter a place name first to select location</string>
+    <string name="create_meet_pick_on_map">Pick on Map</string>
+    <string name="create_meet_section_details">Meet Details</string>
+    <string name="create_meet_max_participants">Maximum Participants</string>
+    <plurals name="create_meet_participants_count">
+        <item quantity="one">%d person</item>
+        <item quantity="other">%d people</item>
+    </plurals>
 </resources>

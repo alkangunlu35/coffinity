@@ -1133,4 +1133,18 @@
     <string name="meet_no_locations_to_show">Haritada gösterecek konum bulunamadı</string>
     <string name="meet_location_unavailable_toast">Konum bilgisi bulunamadı</string>
     <string name="meet_map_open_failed_toast">Harita açılamadı</string>
+    <string name="create_meet_validation_title">Başlık giriniz</string>
+    <string name="create_meet_validation_location">Konum seçiniz</string>
+    <string name="create_meet_validation_purpose">Bir mod seçiniz</string>
+    <string name="create_meet_validation_date">Tarih seçiniz</string>
+    <string name="create_meet_validation_time">Saat seçiniz</string>
+    <string name="create_meet_section_info">Buluşma Bilgileri</string>
+    <string name="create_meet_location_hint_first">Konum seçmek için önce bir yer adı gir</string>
+    <string name="create_meet_pick_on_map">Haritada Seç</string>
+    <string name="create_meet_section_details">Buluşma Ayrıntıları</string>
+    <string name="create_meet_max_participants">Maksimum Katılımcı</string>
+    <plurals name="create_meet_participants_count">
+        <item quantity="one">%d kişi</item>
+        <item quantity="other">%d kişi</item>
+    </plurals>
 </resources>

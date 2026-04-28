@@ -98,6 +98,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -250,13 +251,19 @@ fun CreateMeetScreen(
         }
     }
 
+    val validationTitleMsg = stringResource(R.string.create_meet_validation_title)
+    val validationLocationMsg = stringResource(R.string.create_meet_validation_location)
+    val validationPurposeMsg = stringResource(R.string.create_meet_validation_purpose)
+    val validationDateMsg = stringResource(R.string.create_meet_validation_date)
+    val validationTimeMsg = stringResource(R.string.create_meet_validation_time)
+
     val getValidationFeedback: () -> ValidationFeedback? = {
         when {
-            title.isBlank() -> ValidationFeedback(ValidationTarget.TITLE, "Başlık giriniz")
-            locationName.isBlank() -> ValidationFeedback(ValidationTarget.LOCATION, "Konum seçiniz")
-            selectedPurpose.isBlank() -> ValidationFeedback(ValidationTarget.PURPOSE, "Bir mod seçiniz")
-            selectedDate == null -> ValidationFeedback(ValidationTarget.DATE, "Tarih seçiniz")
-            selectedStartTime == null -> ValidationFeedback(ValidationTarget.TIME, "Saat seçiniz")
+            title.isBlank() -> ValidationFeedback(ValidationTarget.TITLE, validationTitleMsg)
+            locationName.isBlank() -> ValidationFeedback(ValidationTarget.LOCATION, validationLocationMsg)
+            selectedPurpose.isBlank() -> ValidationFeedback(ValidationTarget.PURPOSE, validationPurposeMsg)
+            selectedDate == null -> ValidationFeedback(ValidationTarget.DATE, validationDateMsg)
+            selectedStartTime == null -> ValidationFeedback(ValidationTarget.TIME, validationTimeMsg)
             else -> null
         }
     }
@@ -501,7 +508,7 @@ fun CreateMeetScreen(
 
             ReferenceMeetCard {
                 Text(
-                    text = "Buluşma Bilgileri",
+                    text = stringResource(R.string.create_meet_section_info),
                     style = MaterialTheme.typography.titleSmall.copy(shadow = MeetTextShadow),
                     fontWeight = FontWeight.SemiBold,
                     color = MeetSectionCream,
@@ -560,7 +567,7 @@ fun CreateMeetScreen(
                                     MapsLaunchResult.EMPTY_QUERY -> {
                                         Toast.makeText(
                                             context,
-                                            "Konum seçmek için önce bir yer adı gir",
+                                            context.getString(R.string.create_meet_location_hint_first),
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
@@ -627,7 +634,7 @@ fun CreateMeetScreen(
                     ) {
                         Text(
                             text = if (onOpenLocationPicker != null) {
-                                "Haritada Seç"
+                                stringResource(R.string.create_meet_pick_on_map)
                             } else {
                                 stringResource(R.string.meet_open_in_maps)
                             },
@@ -640,7 +647,7 @@ fun CreateMeetScreen(
 
             ReferenceMeetCard {
                 Text(
-                    text = "Buluşma Ayrıntıları",
+                    text = stringResource(R.string.create_meet_section_details),
                     style = MaterialTheme.typography.titleSmall.copy(shadow = MeetTextShadow),
                     fontWeight = FontWeight.SemiBold,
                     color = MeetSectionCream,
@@ -702,7 +709,7 @@ fun CreateMeetScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Maksimum Katılımcı",
+                        text = stringResource(R.string.create_meet_max_participants),
                         style = MaterialTheme.typography.bodySmall.copy(shadow = MeetTextShadow),
                         color = MeetSectionCream,
                         fontWeight = FontWeight.SemiBold
@@ -1306,7 +1313,7 @@ private fun PremiumParticipantStepper(
         }
 
         Text(
-            text = "$value kişi",
+            text = pluralStringResource(R.plurals.create_meet_participants_count, value, value),
             style = MaterialTheme.typography.labelMedium.copy(shadow = MeetTextShadow),
             fontWeight = FontWeight.SemiBold,
             color = Color(0xFFF3E4D1)

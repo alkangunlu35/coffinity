@@ -33,6 +33,12 @@ android {
 
         val webClientId: String = project.findProperty("WEB_CLIENT_ID") as String? ?: ""
         buildConfigField("String", "WEB_CLIENT_ID", "\"$webClientId\"")
+
+        // i18n: Sadece TR + EN APK'ye dahil edilsin.
+        // DE/FR/ES/AR/PT-BR çevirileri eksik, kullanıcı yarı-İngilizce kafa karışıklığı yaşamasın.
+        // Diğer dil cihazlarda otomatik EN fallback gösterilir.
+        // TODO: Çeviri tamamlandıktan sonra bu satırı kaldır.
+        androidResources.localeFilters += listOf("en", "tr")
     }
 
     buildTypes {

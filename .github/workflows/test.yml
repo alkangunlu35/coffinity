@@ -39,6 +39,40 @@ jobs:
           echo "MAPS_API_KEY=stub" >> local.properties
           echo "WEB_CLIENT_ID=stub" >> local.properties
 
+      - name: Create stub google-services.json
+        run: |
+          cat > app/google-services.json << 'JSON_EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "stub-project",
+              "storage_bucket": "stub-project.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "com.icoffee.app"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "stub-api-key-for-ci-only"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON_EOF
+
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 

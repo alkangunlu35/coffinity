@@ -1175,4 +1175,25 @@
         <item quantity="one">%d person</item>
         <item quantity="other">%d people</item>
     </plurals>
+    <string name="meet_no_active_room_for_mode">No active room yet for this mode</string>
+    <string name="meet_no_nearby_match">No events near you match this filter.</string>
+    <string name="meet_create_event">Create Event</string>
+    <string name="meet_explore_all_events">Explore All Events</string>
+    <string name="meet_invite_chat_starts_directly">A chat starts directly when accepted</string>
+    <string name="meet_sent_coffee_invites">Sent coffee invites</string>
+    <string name="meet_chat_action">Chat</string>
+    <string name="meet_send_action">Send</string>
+    <string name="meet_quick_time_subtitle">Pick a time quickly, send invite</string>
+    <string name="meet_invite_chat_starts_when_accepted">If accepted you can start chatting</string>
+    <string name="meet_invite_field_start">Start</string>
+    <string name="meet_invite_field_end">End</string>
+    <string name="meet_invite_field_selected_time">Selected time</string>
+    <string name="meet_invite_note_placeholder">Add a short note (optional)</string>
+    <string name="meet_invite_sending">Sending…</string>
+    <string name="meet_invite_send_button">Send Invite</string>
+    <string name="meet_invite_cancel_action">Cancel</string>
+    <string name="meet_toast_end_after_start">End time must be after start time</string>
+    <string name="meet_toast_invite_sent">Invite sent</string>
+    <string name="meet_toast_invalid_time_range">Please select a valid time range</string>
+    <string name="meet_toast_invite_failed">Could not send invite</string>
 </resources>

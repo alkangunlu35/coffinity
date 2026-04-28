@@ -636,7 +636,7 @@ fun MeetScreen(
                         return@CoffeeInviteComposerDialog
                     }
                     if (inviteEndTime <= inviteStartTime) {
-                        Toast.makeText(context, "Bitiş saati başlangıçtan sonra olmalı", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.meet_toast_end_after_start), Toast.LENGTH_SHORT).show()
                         return@CoffeeInviteComposerDialog
                     }
                     inviteSending = true
@@ -655,7 +655,7 @@ fun MeetScreen(
                         sendResult
                             .onSuccess { sent ->
                                 if (sent) {
-                                    Toast.makeText(context, "Davet gönderildi", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.meet_toast_invite_sent), Toast.LENGTH_SHORT).show()
                                     inviteSending = false
                                     inviteTarget = null
                                 } else {
@@ -686,7 +686,7 @@ fun MeetScreen(
                                     normalizedMessage == "invalid_time_window" -> {
                                         Toast.makeText(
                                             context,
-                                            "Geçerli bir saat aralığı seçiniz",
+                                            context.getString(R.string.meet_toast_invalid_time_range),
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
@@ -702,7 +702,7 @@ fun MeetScreen(
                                     else -> {
                                         Toast.makeText(
                                             context,
-                                            "Davet gönderilemedi",
+                                            context.getString(R.string.meet_toast_invite_failed),
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
@@ -918,14 +918,14 @@ private fun MeetEmptyActionCard(
                 )
             }
             Text(
-                text = "Bu mod için henüz aktif oda yok",
+                text = stringResource(R.string.meet_no_active_room_for_mode),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                 color = meetCream
             )
         }
 
         Text(
-            text = "Yakın çevrende bu filtreye uygun etkinlik bulunamadı.",
+            text = stringResource(R.string.meet_no_nearby_match),
             style = MaterialTheme.typography.bodySmall,
             color = meetCream.copy(alpha = 0.84f)
         )
@@ -940,7 +940,7 @@ private fun MeetEmptyActionCard(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Etkinlik Oluştur",
+                text = stringResource(R.string.meet_create_event),
                 style = MaterialTheme.typography.labelLarge,
                 color = Color(0xFF2A1B12)
             )
@@ -957,7 +957,7 @@ private fun MeetEmptyActionCard(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Tüm Etkinlikleri Keşfet",
+                text = stringResource(R.string.meet_explore_all_events),
                 style = MaterialTheme.typography.labelLarge,
                 color = meetCream
             )
@@ -1779,7 +1779,7 @@ private fun CoffeeInviteInboxCard(
                 }
 
                 Text(
-                    text = "Kabul ederseniz direkt sohbet başlar",
+                    text = stringResource(R.string.meet_invite_chat_starts_directly),
                     style = MaterialTheme.typography.labelSmall,
                     color = meetMutedTan.copy(alpha = 0.88f)
                 )
@@ -1809,7 +1809,7 @@ private fun CoffeeInviteOutgoingCard(
         verticalArrangement = Arrangement.spacedBy(CoffeeSpacing.sm)
     ) {
         Text(
-            text = "Gönderilen kahve davetleri",
+            text = stringResource(R.string.meet_sent_coffee_invites),
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             color = meetCream
         )
@@ -1989,7 +1989,7 @@ private fun AcceptedInviteChatEntryCard(
                 }
 
                 Text(
-                    text = "Mesajlaş",
+                    text = stringResource(R.string.meet_chat_action),
                     style = MaterialTheme.typography.labelSmall,
                     color = meetAmber,
                     modifier = Modifier
@@ -2091,7 +2091,7 @@ private fun CoffeeBuddyChatDialog(
                         maxLines = 3
                     )
                     Text(
-                        text = "Gönder",
+                        text = stringResource(R.string.meet_send_action),
                         style = MaterialTheme.typography.labelSmall,
                         color = meetAmber,
                         modifier = Modifier
@@ -2148,7 +2148,7 @@ private fun CoffeeInviteComposerDialog(
                 verticalArrangement = Arrangement.spacedBy(CoffeeSpacing.sm)
             ) {
                 Text(
-                    text = "Hızlıca saat seç, davet gönder",
+                    text = stringResource(R.string.meet_quick_time_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = meetMutedTan
                 )
@@ -2215,7 +2215,7 @@ private fun CoffeeInviteComposerDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable(onClick = onStartTimeClick),
-                            label = { Text("Başlangıç") },
+                            label = { Text(stringResource(R.string.meet_invite_field_start)) },
                             readOnly = true,
                             singleLine = true
                         )
@@ -2225,7 +2225,7 @@ private fun CoffeeInviteComposerDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable(onClick = onEndTimeClick),
-                            label = { Text("Bitiş") },
+                            label = { Text(stringResource(R.string.meet_invite_field_end)) },
                             readOnly = true,
                             singleLine = true
                         )
@@ -2240,7 +2240,7 @@ private fun CoffeeInviteComposerDialog(
                         ),
                         onValueChange = {},
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Seçili zaman") },
+                        label = { Text(stringResource(R.string.meet_invite_field_selected_time)) },
                         readOnly = true,
                         singleLine = true
                     )
@@ -2274,7 +2274,7 @@ private fun CoffeeInviteComposerDialog(
                     onValueChange = onMessageChange,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Not (opsiyonel)") },
-                    placeholder = { Text("Kısa bir not ekle (opsiyonel)") },
+                    placeholder = { Text(stringResource(R.string.meet_invite_note_placeholder)) },
                     maxLines = 3
                 )
             }
@@ -2295,13 +2295,13 @@ private fun CoffeeInviteComposerDialog(
                             color = meetCream
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Gönderiliyor...")
+                        Text(text = stringResource(R.string.meet_invite_sending))
                     } else {
-                        Text(text = "Davet Gönder")
+                        Text(text = stringResource(R.string.meet_invite_send_button))
                     }
                 }
                 Text(
-                    text = "Karşı taraf kabul ederse mesajlaşmaya geçersiniz",
+                    text = stringResource(R.string.meet_invite_chat_starts_when_accepted),
                     style = MaterialTheme.typography.labelSmall,
                     color = meetMutedTan
                 )
@@ -2312,7 +2312,7 @@ private fun CoffeeInviteComposerDialog(
                 onClick = onDismiss,
                 enabled = !isSending
             ) {
-                Text(text = "Vazgeç")
+                Text(text = stringResource(R.string.meet_invite_cancel_action))
             }
         },
         containerColor = meetSurface,

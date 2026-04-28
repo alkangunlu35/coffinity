@@ -1147,4 +1147,25 @@
         <item quantity="one">%d kişi</item>
         <item quantity="other">%d kişi</item>
     </plurals>
+    <string name="meet_no_active_room_for_mode">Bu mod için henüz aktif oda yok</string>
+    <string name="meet_no_nearby_match">Yakın çevrende bu filtreye uygun etkinlik bulunamadı.</string>
+    <string name="meet_create_event">Etkinlik Oluştur</string>
+    <string name="meet_explore_all_events">Tüm Etkinlikleri Keşfet</string>
+    <string name="meet_invite_chat_starts_directly">Kabul ederseniz direkt sohbet başlar</string>
+    <string name="meet_sent_coffee_invites">Gönderilen kahve davetleri</string>
+    <string name="meet_chat_action">Mesajlaş</string>
+    <string name="meet_send_action">Gönder</string>
+    <string name="meet_quick_time_subtitle">Hızlıca saat seç, davet gönder</string>
+    <string name="meet_invite_chat_starts_when_accepted">Karşı taraf kabul ederse mesajlaşmaya geçersiniz</string>
+    <string name="meet_invite_field_start">Başlangıç</string>
+    <string name="meet_invite_field_end">Bitiş</string>
+    <string name="meet_invite_field_selected_time">Seçili zaman</string>
+    <string name="meet_invite_note_placeholder">Kısa bir not ekle (opsiyonel)</string>
+    <string name="meet_invite_sending">Gönderiliyor…</string>
+    <string name="meet_invite_send_button">Davet Gönder</string>
+    <string name="meet_invite_cancel_action">Vazgeç</string>
+    <string name="meet_toast_end_after_start">Bitiş saati başlangıçtan sonra olmalı</string>
+    <string name="meet_toast_invite_sent">Davet gönderildi</string>
+    <string name="meet_toast_invalid_time_range">Geçerli bir saat aralığı seçiniz</string>
+    <string name="meet_toast_invite_failed">Davet gönderilemedi</string>
 </resources>

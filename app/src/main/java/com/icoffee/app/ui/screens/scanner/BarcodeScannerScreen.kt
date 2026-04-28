@@ -320,6 +320,7 @@ private fun BarcodeCameraPreview(
                         return@setAnalyzer
                     }
 
+                    @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
                     val mediaImage = imageProxy.image
                     if (mediaImage == null) {
                         imageProxy.close()

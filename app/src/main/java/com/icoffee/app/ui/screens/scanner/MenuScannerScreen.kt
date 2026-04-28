@@ -185,6 +185,7 @@ fun MenuScannerScreen(
                     capture.takePicture(
                         Executors.newSingleThreadExecutor(),
                         object : ImageCapture.OnImageCapturedCallback() {
+                            @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
                             override fun onCaptureSuccess(imageProxy: androidx.camera.core.ImageProxy) {
                                 val imageHash = imageHashFromProxy(imageProxy)
                                 val cached = MenuScanRepository.getCachedByImageHash(imageHash)
